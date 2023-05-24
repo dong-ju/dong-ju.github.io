@@ -1,0 +1,9 @@
+{
+  "homepage": "https://dong-ju.github.io/",
+  "scripts": {
+    "deploy": "gh-pages -d blog/out --dotfiles && cd blog"
+  },
+  "devDependencies": {
+    "gh-pages": "^5.0.0"
+  }
+}
