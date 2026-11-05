@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0e1729">
+  <title>투자 손실·담보 계산기</title>
+  <meta name="description" content="주식 확정손실, 신용 상환, 현금 인출, 담보유지비율 시나리오를 계산합니다. 모든 계산은 브라우저에서만 처리됩니다.">
+  <style>
+    :root{font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;color:#172033;background:#f3f6fb;font-size:14px}
+    *{box-sizing:border-box}body{margin:0;min-width:320px}button,input{font:inherit}button{cursor:pointer}
+    .top{background:#101b30;color:white;padding:24px max(20px,calc((100vw - 1120px)/2));display:flex;align-items:center;justify-content:space-between;gap:20px}
+    .eyebrow{font-size:11px;color:#abc3ef;font-weight:750;letter-spacing:1.3px}.top h1{margin:5px 0 7px;font-size:24px;letter-spacing:-.7px}.top p{margin:0;color:#aabbd6;font-size:12px}
+    .top a{color:#f3f6ff;text-decoration:none;font-size:12px;border:1px solid #475a79;border-radius:12px;padding:9px 13px}
+    main{max-width:1160px;margin:0 auto;padding:22px 20px 54px}
+    .hint{border:1px solid #d7e3f8;background:#eaf2ff;padding:14px 17px;border-radius:14px;color:#375277;line-height:1.65;font-size:12px;margin-bottom:18px}
+    .layout{display:grid;grid-template-columns:390px minmax(0,1fr);gap:18px;align-items:start}
+    .panel{background:white;border-radius:17px;border:1px solid #e0e7f0;box-shadow:0 3px 18px rgba(32,51,89,.035);padding:18px;margin-bottom:16px}
+    h2{font-size:16px;margin:0 0 14px;letter-spacing:-.3px}h3{font-size:13px;margin:0 0 9px}.sub{font-size:12px;color:#68758b;margin:-7px 0 15px;line-height:1.6}
+    .fields{display:grid;grid-template-columns:1fr 1fr;gap:11px}.field{min-width:0}.field.full{grid-column:1/-1}
+    label{font-size:11px;font-weight:750;color:#63718a;display:block;margin-bottom:6px}
+    .input{display:flex;align-items:center;border:1px solid #d8e1ed;border-radius:10px;background:#fbfcff;overflow:hidden;height:41px}
+    .input:focus-within{outline:2px solid #a9caff;border-color:#5e93e9}
+    .input input{border:0;outline:0;background:transparent;padding:0 8px 0 10px;width:100%;min-width:0;text-align:right;color:#15243a;font-size:14px;font-weight:700}
+    .input span{padding:0 10px 0 0;color:#8793a5;font-size:11px;white-space:nowrap}
+    .bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}button,.upload{background:#f2f6ff;border:1px solid #cbdaf2;border-radius:10px;padding:9px 12px;color:#28528e;font-weight:750;font-size:12px;cursor:pointer}
+    .upload input{display:none}.primary{background:#2059b3;color:white;border-color:#2059b3}.soft-danger{color:#b43b49;border-color:#f3c9ce;background:#fff5f6}
+    .results{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}
+    .metric{padding:16px;border-radius:14px;background:white;border:1px solid #e0e7f0;min-width:0}
+    .metric .name{color:#68758b;font-size:11px;font-weight:700}.metric .value{font-size:20px;font-weight:850;margin-top:10px;overflow-wrap:anywhere;letter-spacing:-.5px}.metric .detail{margin-top:6px;color:#8893a7;font-size:11px}
+    .red{color:#c43d52}.green{color:#0d8a71}.blue{color:#235eb7}.muted{color:#748195}
+    .status{padding:12px 15px;background:#f3f7ff;border:1px solid #dbe6fa;border-radius:12px;font-size:12px;line-height:1.65;margin:0 0 16px}
+    .status.warn{background:#fff5ee;border-color:#ffd7ba;color:#94561b}.status.critical{background:#fff2f4;border-color:#f4bdc5;color:#ab2943}
+    table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:11px 8px;text-align:right;border-bottom:1px solid #edf0f6;white-space:nowrap}th{background:#f8faff;color:#60708b;font-size:11px}th:first-child,td:first-child{text-align:left}tbody tr.current{background:#edf5ff;font-weight:800}tbody tr:hover{background:#fafbfe}
+    .scroll{overflow-x:auto}.foot{line-height:1.7;font-size:11px;color:#78859b}.foot strong{color:#51617a}
+    .divider{border:0;border-top:1px solid #eef1f5;margin:17px 0}
+    .quick{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 15px}.quick button{background:white}
+    .cols{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mini{border:1px solid #e5ebf4;border-radius:12px;padding:12px;background:#fbfcff}.mini span{font-size:11px;color:#6e7c94}.mini strong{display:block;margin-top:5px;font-size:16px}
+    @media(max-width:850px){.layout{grid-template-columns:1fr}.top{padding:19px 20px}.results{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:460px){.top h1{font-size:20px}.top a{font-size:11px}.results{grid-template-columns:1fr 1fr}.metric{padding:12px}.metric .value{font-size:17px}.fields{gap:9px}.panel{padding:14px}.top{align-items:flex-start}}
+    @media print{body{background:white}.top{color:black;background:white}.top a,.bar,.hint,.quick{display:none}main{max-width:none;padding:0}.layout{grid-template-columns:1fr 1fr}.panel,.metric{break-inside:avoid;box-shadow:none}}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div><div class="eyebrow">PORTFOLIO RISK PLANNER</div><h1>투자 손실·담보 계산기</h1><p>매도 수량 · 확정손실 · 신용 상환 · 인출 계획</p></div>
+    <a href="https://dong-ju.github.io/">사이트 홈</a>
+  </header>
+  <main>
+    <div class="hint"><strong>개인 정보 보호:</strong> 입력값은 브라우저에서만 계산됩니다. 서버로 전송하지 않습니다. ‘이 기기에 저장’ 버튼을 누른 경우에만 이 브라우저에 저장됩니다. <strong>주가와 증권사 담보비율은 자동 조회하지 않습니다.</strong></div>
+    <div class="layout">
+      <div>
+        <section class="panel">
+          <h2>보유 현황</h2>
+          <p class="sub">주식·융자·예수금을 입력하세요. 입력값은 외부에 공개되지 않습니다.</p>
+          <div class="fields">
+            <div class="field"><label for="regularShares">일반 보유 수량</label><div class="input"><input id="regularShares" type="number" min="0" step="1" placeholder="0"><span>주</span></div></div>
+            <div class="field"><label for="regularAvg">일반주 평균 매입가</label><div class="input"><input id="regularAvg" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="creditShares">신용 보유 수량</label><div class="input"><input id="creditShares" type="number" min="0" step="1" placeholder="0"><span>주</span></div></div>
+            <div class="field"><label for="creditAvg">신용주 평균 매입가</label><div class="input"><input id="creditAvg" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="loan">신용융자 잔액</label><div class="input"><input id="loan" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="cash">계좌 현금·예수금</label><div class="input"><input id="cash" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="referencePrice">기존 140% 경계 주가</label><div class="input"><input id="referencePrice" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="ratioLimit">담보유지비율 기준</label><div class="input"><input id="ratioLimit" type="number" min="0" max="500" value="140"><span>%</span></div></div>
+            <div class="field full"><label for="cashRecognized">현금 담보인정률 (증권사 확인 전 0% 권장)</label><div class="input"><input id="cashRecognized" type="number" min="0" max="100" value="0"><span>%</span></div></div>
+          </div>
+          <div class="bar"><label class="upload">내 설정 파일 가져오기<input id="import" type="file" accept=".json,application/json"></label><button id="save" type="button">이 기기에 저장</button><button id="export" type="button">설정 파일 내보내기</button><button class="soft-danger" id="clear" type="button">초기화</button></div>
+        </section>
+        <section class="panel">
+          <h2>매도·상환 계획</h2>
+          <p class="sub">계획 수량과 가격을 바꾸면 예상 확정손실과 담보위험이 바로 갱신됩니다.</p>
+          <div class="fields">
+            <div class="field"><label for="sellPrice">예상 매도가</label><div class="input"><input id="sellPrice" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="sellShares">일반주 매도 수량</label><div class="input"><input id="sellShares" type="number" min="0" step="1" placeholder="0"><span>주</span></div></div>
+            <div class="field"><label for="repay">매도대금 등 신용 상환</label><div class="input"><input id="repay" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="withdraw">실제 인출 계획금액</label><div class="input"><input id="withdraw" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="target">인출 목표액</label><div class="input"><input id="target" type="number" min="0" placeholder="0"><span>원</span></div></div>
+            <div class="field"><label for="feeRate">총 매도 거래비용 (가정)</label><div class="input"><input id="feeRate" type="number" min="0" max="10" step="0.01" value="0"><span>%</span></div></div>
+          </div>
+          <hr class="divider">
+          <h3>매도 수량 빠른 선택</h3>
+          <div class="quick" id="quick"></div>
+          <p class="foot">※ 신용 보유 226주를 매도하는 것이 아니라, 일반 보유 주식만 파는 모델입니다. 수수료·매도세율은 본인 계좌에 맞춰 입력하세요. 이자와 실시간 시세는 자동 반영되지 않습니다.</p>
+        </section>
+      </div>
+      <div>
+        <div class="results">
+          <div class="metric"><div class="name">예상 확정손익</div><div class="value red" id="realized">—</div><div class="detail">일반주 매도분 · 비용 포함</div></div>
+          <div class="metric"><div class="name">매도대금 (비용 차감)</div><div class="value" id="proceeds">—</div><div class="detail">현금으로 전환되는 금액</div></div>
+          <div class="metric"><div class="name">신용융자 잔액</div><div class="value" id="remainingLoan">—</div><div class="detail">상환 후 남은 원금</div></div>
+          <div class="metric"><div class="name">매도 후 남은 주식</div><div class="value" id="remainingShares">—</div><div class="detail">일반주 + 신용주</div></div>
+          <div class="metric"><div class="name">계산상 남은 현금</div><div class="value" id="remainingCash">—</div><div class="detail">실제 인출가능액과 다름</div></div>
+          <div class="metric"><div class="name">140% 기준 보정 담보비율</div><div class="value blue" id="margin">—</div><div class="detail">보정 모델 · 증권사 수치 아님</div></div>
+        </div>
+        <div class="status" id="status" role="status">보유 현황과 매도 계획을 입력하면 결과를 보여줍니다.</div>
+        <section class="panel">
+          <h2>포트폴리오와 인출 목표</h2>
+          <div class="cols">
+            <div class="mini"><span>총 매입 원금</span><strong id="costTotal">—</strong></div>
+            <div class="mini"><span>가중평균 매입가</span><strong id="avgTotal">—</strong></div>
+            <div class="mini"><span>계획가 기준 전체 평가손익</span><strong id="pnlTotal">—</strong></div>
+            <div class="mini"><span>매도 후 일반주 잔량</span><strong id="regularRemaining">—</strong></div>
+            <div class="mini"><span>현재 목표 인출 부족액</span><strong id="shortfall">—</strong></div>
+            <div class="mini"><span>해당 계획의 최소 필요 매도 수량</span><strong id="requiredShares">—</strong></div>
+          </div>
+        </section>
+        <section class="panel">
+          <h2>일반주 매도 수량별 비교</h2>
+          <p class="sub">각 행은 <strong>설정한 인출 목표액을 먼저 확보</strong>하고, 남는 매도대금은 신용 상환에 사용한다고 가정합니다. 계획 입력칸과는 독립된 비교표입니다.</p>
+          <div class="scroll"><table><thead><tr><th>매도 주수</th><th>확정손익</th><th>원금 상환</th><th>남는 대출</th><th>추정 담보비율</th></tr></thead><tbody id="comparison"></tbody></table></div>
+          <p class="foot">※ 계획을 현실적으로 실행할 수 없는 행(인출 목표 부족)은 별도 표시합니다. 주식담보 인식률은 기존 경계 주가에 맞춰 역산한 보정치이며, 매도 후 실제 담보 평가·인출 승인과 일치하지 않을 수 있습니다.</p>
+        </section>
+        <section class="panel">
+          <h2>해석 시 유의사항</h2>
+          <p class="foot">
+            <strong>① 담보위험:</strong> 기준 경계가(예: 70,300원)와 기존 담보유지비율(예: 140%)을 이용해 주식 담보인정률을 역산합니다. 담보 인정 현금, 담보종목 할인율, 이자, 계좌별 대용평가, 신용반대매매 규칙은 증권사와 다를 수 있습니다.<br>
+            <strong>② 출금:</strong> 계산상 현금이 충분해도 실제 인출가능액은 증권사 시스템에 따라 다릅니다. 신용 대출 상환 시 매도대금이 우선 충당될 수도 있습니다.<br>
+            <strong>③ 손익:</strong> 확정손실은 (매도가 − 일반주 매입단가) × 매도주수 − 거래비용입니다. 나머지 보유분의 손실은 평가손익이며 확정된 것이 아닙니다.<br>
+            <strong>④ 개인정보:</strong> 기기에 저장하면 브라우저 저장소에만 남습니다. 공용 기기에서는 저장하지 마세요. 실제 주문·매도·상환은 실행하지 않습니다.
+          </p>
+        </section>
+      </div>
+    </div>
+  </main>
+  <script>
+    (function(){
+      "use strict";
+      var keys=["regularShares","regularAvg","creditShares","creditAvg","loan","cash","referencePrice","ratioLimit","cashRecognized","sellPrice","sellShares","repay","withdraw","target","feeRate"];
+      var defaults={regularShares:0,regularAvg:0,creditShares:0,creditAvg:0,loan:0,cash:0,referencePrice:0,ratioLimit:140,cashRecognized:0,sellPrice:0,sellShares:0,repay:0,withdraw:0,target:9000000,feeRate:0};
+      var krw=function(n){return Math.round(n).toLocaleString("ko-KR")+"원"};
+      var pct=function(n){return Number.isFinite(n)?n.toFixed(1)+"%":"—"};
+      var html=function(id,v){document.getElementById(id).textContent=v};
+      function apply(v){keys.forEach(function(k){document.getElementById(k).value=Number.isFinite(Number(v[k]))?Number(v[k]):defaults[k]});calculate()}
+      function values(){var s={};keys.forEach(function(k){s[k]=Math.max(0,Number(document.getElementById(k).value)||0)});return s}
+      function estimate(s,n,repay,withdraw,price,ratioFactor){
+        var gross=n*price, fee=gross*s.feeRate/100, net=gross-fee;
+        var cashLeft=s.cash+net-repay-withdraw, loanLeft=s.loan-repay;
+        var remaining=s.regularShares+s.creditShares-n;
+        var priceCollateral=remaining*price*ratioFactor;
+        var ratio=loanLeft>0?(priceCollateral+Math.max(0,cashLeft)*s.cashRecognized/100)/loanLeft*100:Infinity;
+        return {gross:gross,net:net,fee:fee,cashLeft:cashLeft,loanLeft:loanLeft,remaining:remaining,ratio:ratio,pnl:n*(price-s.regularAvg)-fee,valid:n<=s.regularShares&&repay<=s.loan&&cashLeft>=-0.00001&&repay>=0&&withdraw>=0};
+      }
+      function calculate(){
+        var s=values(),count=s.regularShares+s.creditShares, price=s.sellPrice;
+        var n=Math.min(count,Math.max(0,Math.floor(s.sellShares)));
+        var calibrated=(count>0&&s.referencePrice>0&&s.loan>0)?(s.loan*s.ratioLimit/100-s.cash*s.cashRecognized/100)/(count*s.referencePrice):NaN;
+        var factor=Number.isFinite(calibrated)&&calibrated>0?calibrated:1;
+        var r=estimate(s,n,s.repay,s.withdraw,price,factor);
+        var basis=s.regularShares*s.regularAvg+s.creditShares*s.creditAvg;
+        html("costTotal",krw(basis));html("avgTotal",count?krw(basis/count):"—");
+        html("pnlTotal",price?krw(count*price-basis):"—");
+        html("realized",krw(r.pnl));html("proceeds",krw(r.net));html("remainingLoan",krw(r.loanLeft));html("remainingShares",r.remaining.toLocaleString("ko-KR")+"주");
+        html("regularRemaining",(s.regularShares-n).toLocaleString("ko-KR")+"주");
+        html("remainingCash",krw(r.cashLeft));
+        html("margin",s.loan>0&&price>0?(r.loanLeft>0?pct(r.ratio):"상환 완료"):"—");
+        html("shortfall",krw(Math.max(0,s.target-s.cash)));
+        var need=(price>0&&s.feeRate<100)?Math.max(0,Math.ceil((s.withdraw+s.repay-s.cash)/(price*(1-s.feeRate/100)))):0;
+        html("requiredShares",price>0?need.toLocaleString("ko-KR")+"주":"—");
+        var problems=[];
+        if(!s.regularShares||!price||!s.regularAvg){problems.push("일반주 수량·평균 매입가·예상 매도가를 입력하세요.")}
+        if(n>s.regularShares){problems.push("일반주 매도 수량이 보유량을 초과합니다.")}
+        if(s.repay>s.loan){problems.push("상환액이 대출잔액을 초과합니다.")}
+        if(r.cashLeft<0){problems.push("인출·상환 계획에 비해 현금이 "+krw(-r.cashLeft)+" 부족합니다.")}
+        if(!Number.isFinite(calibrated)||calibrated<=0||calibrated>1.2){problems.push("담보 경계가와 융자금 정보를 확인하세요. 담보 추정치의 신뢰도가 낮습니다.")}
+        if(r.valid&&price>0&&s.loan>0&&r.loanLeft>0&&r.ratio<s.ratioLimit){problems.push("추정 담보비율이 "+pct(s.ratioLimit)+" 아래입니다. 추가담보 요구·반대매매 위험을 확인하세요.")}
+        if(r.valid&&s.withdraw<s.target){problems.push("설정한 인출액이 목표보다 "+krw(s.target-s.withdraw)+" 적습니다.")}
+        var st=document.getElementById("status");
+        st.className="status"+(problems.some(function(x){return x.includes("초과")||x.includes("부족")||x.includes("아래")})?" critical":problems.length?" warn":"");
+        st.textContent=problems.length?problems.join(" "):"계산상 계획은 성립합니다. 다만 계좌의 실제 담보비율과 인출가능금액은 한국투자증권에서 확인해야 합니다.";
+        var qtys=[0,50,100,150,200,250,300,400,s.regularShares];
+        var unique=Array.from(new Set(qtys.filter(function(x){return x<=s.regularShares&&x>=0}))).sort(function(a,b){return a-b});
+        var tbody=document.getElementById("comparison");tbody.replaceChildren();
+        unique.forEach(function(q){
+          var net=q*price*(1-s.feeRate/100);
+          var available=s.cash+net-s.target;
+          var repay=available>=0?Math.min(s.loan,available):0;
+          var v=estimate(s,q,repay,s.target,price,factor);
+          var tr=document.createElement("tr");if(q===n)tr.className="current";
+          var cells=[q.toLocaleString("ko-KR")+"주",krw(v.pnl),available<0?"인출 부족":krw(repay),krw(v.loanLeft),available<0?"—":v.loanLeft<=0?"완납":pct(v.ratio)];
+          cells.forEach(function(x,i){var td=document.createElement("td");td.textContent=x;if(i===1&&v.pnl<0)td.className="red";if(i===4&&available>=0&&v.loanLeft>0)td.className=v.ratio<s.ratioLimit?"red":"green";tr.appendChild(td)});tbody.appendChild(tr);
+        });
+      }
+      keys.forEach(function(k){document.getElementById(k).addEventListener("input",calculate)});
+      [0,50,100,150,200,250,300].forEach(function(n){var b=document.createElement("button");b.type="button";b.textContent=n+"주";b.addEventListener("click",function(){document.getElementById("sellShares").value=n;calculate()});document.getElementById("quick").appendChild(b)});
+      document.getElementById("save").addEventListener("click",function(){try{localStorage.setItem("ecopro-risk-settings-v1",JSON.stringify(values()));alert("이 브라우저에만 저장했습니다.")}catch(e){alert("브라우저 저장에 실패했습니다.")}});
+      document.getElementById("clear").addEventListener("click",function(){if(confirm("입력값과 이 기기의 저장값을 초기화할까요?")){try{localStorage.removeItem("ecopro-risk-settings-v1")}catch(e){}apply(defaults)}});
+      document.getElementById("export").addEventListener("click",function(){var data=new Blob([JSON.stringify(values(),null,2)],{type:"application/json"}),url=URL.createObjectURL(data),a=document.createElement("a");a.href=url;a.download="investment-risk-settings.json";a.click();setTimeout(function(){URL.revokeObjectURL(url)},200)});
+      document.getElementById("import").addEventListener("change",function(event){var f=event.target.files&&event.target.files[0];if(!f)return;f.text().then(function(t){var o=JSON.parse(t);if(!o||typeof o!=="object"||Array.isArray(o))throw Error("설정 파일이 아닙니다.");apply(Object.assign({},defaults,o))}).catch(function(){alert("설정 파일을 읽지 못했습니다. JSON 파일인지 확인하세요.")});event.target.value=""});
+      try{var stored=localStorage.getItem("ecopro-risk-settings-v1");apply(stored?Object.assign({},defaults,JSON.parse(stored)):defaults)}catch(e){apply(defaults)}
+    })();
+  </script>
+</body>
+</html>
