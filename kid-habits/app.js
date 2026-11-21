@@ -18,12 +18,20 @@ function nextDay(day,offset=1){let d=new Date(day+"T12:00:00Z");d.setUTCDate(d.g
 function diffDays(a,b){return Math.round((Date.parse(a+"T12:00:00Z")-Date.parse(b+"T12:00:00Z"))/86400000);}
 function uid(){return typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():"p"+Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function safe(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-function fresh(){return {version:4,habits:JSON.parse(JSON.stringify(starter)),bonusItems:JSON.parse(JSON.stringify(DEFAULT_BONUSES)),checks:[],ledger:[],subchecks:{},subcheckTimes:{},studyDays:{}};}
-function validate(d){return d&&[1,2,3,4].includes(d.version)&&Array.isArray(d.habits)&&Array.isArray(d.checks)&&Array.isArray(d.ledger)&&d.habits.length<500&&d.checks.length<100000&&d.ledger.length<100000&&d.habits.every(h=>h&&typeof h.id==="string"&&typeof h.title==="string"&&Number.isInteger(h.reward_minutes));}
+function fresh(){return {version:5,started_on:seoulToday(),habits:JSON.parse(JSON.stringify(starter)).map(h=>({...h,created_on:seoulToday()})),bonusItems:JSON.parse(JSON.stringify(DEFAULT_BONUSES)),checks:[],ledger:[],subchecks:{},subcheckTimes:{},studyDays:{}};}
+function validate(d){return d&&[1,2,3,4,5].includes(d.version)&&Array.isArray(d.habits)&&Array.isArray(d.checks)&&Array.isArray(d.ledger)&&d.habits.length<500&&d.checks.length<100000&&d.ledger.length<100000&&d.habits.every(h=>h&&typeof h.id==="string"&&typeof h.title==="string"&&Number.isInteger(h.reward_minutes));}
 function migrate(d){
  if(!d.subchecks||typeof d.subchecks!=="object")d.subchecks={};
  if(!d.studyDays||typeof d.studyDays!=="object")d.studyDays={};
  if(!d.subcheckTimes||typeof d.subcheckTimes!=="object")d.subcheckTimes={};
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(d.started_on||"")){
+  const dates=[
+   ...d.checks.map(c=>c.day),
+   ...d.ledger.map(l=>l.day),
+   ...Object.keys(d.subchecks).map(k=>k.split("|")[0])
+  ].filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)).sort();
+  d.started_on=dates[0]||seoulToday();
+ }
  if(!Array.isArray(d.bonusItems))d.bonusItems=JSON.parse(JSON.stringify(DEFAULT_BONUSES));
  d.bonusItems=d.bonusItems.filter(x=>x&&typeof x.id==="string"&&typeof x.title==="string"&&Number.isInteger(x.minutes)&&x.minutes!==0&&Math.abs(x.minutes)<=300).map(x=>({...x,active:x.active!==false}));
  d.habits.forEach(h=>{
@@ -36,7 +44,8 @@ function migrate(d){
   else if(!Array.isArray(h.items))h.items=def?JSON.parse(JSON.stringify(def.items)):[];
   h.items=h.items.map(x=>typeof x==="string"?{id:uid(),title:x}:x).filter(x=>x&&typeof x.id==="string"&&typeof x.title==="string");
  });
- d.version=4;
+ d.habits.forEach(h=>{if(!h.created_on)h.created_on=d.started_on;});
+ d.version=5;
  return d;
 }
 function read(){
@@ -217,7 +226,7 @@ function setHabit(data){
  if(!title||title.length>80||!Number.isInteger(minutes)||minutes<1||minutes>180||titles.length>20||titles.some(x=>x.length>48))throw Error("항목·시간을 확인해주세요.");
  const items=titles.map((t,i)=>({id:prev?.items[i]?.id||uid(),title:t}));
  if(prev){prev.title=title;prev.reward_minutes=minutes;prev.items=items;prev.active=data.active;}
- else d.habits.push({id:uid(),title,reward_minutes:minutes,sort_order:d.habits.length+1,active:true,items});
+ else d.habits.push({id:uid(),title,reward_minutes:minutes,sort_order:d.habits.length+1,created_on:seoulToday(),active:true,items});
  save(d);render();
 }
 function el(label,cls,action,attr=""){return '<button type="button" class="'+cls+'" data-action="'+action+'" '+attr+'>'+label+'</button>';}
@@ -251,6 +260,184 @@ function renderTask(d,h,day,r){
   '<div class="right">'+(state?'<span class="state '+(complete?"done":"")+'">'+state+'</span>':'')+
   '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
   detail+actionsBottom+'</article>';
+}
+function dailyCompletion(d,active,day){
+ const current=seoulToday();
+ const result={day,totalTasks:0,approvedTasks:0,waitingTasks:0,totalSteps:0,tickedSteps:0,byId:{}};
+ active.forEach(h=>{
+  const available=day<=current&&day>=d.started_on&&day>=(h.created_on||d.started_on);
+  const stepCount=h.rotation&&h.items.length?1:Math.max(1,h.items.length);
+  if(!available){result.byId[h.id]={status:"out",steps:0,total:stepCount};return;}
+  const c=check(d,h.id,day),status=c?.status||"";
+  const ids=new Set(checked(d,h.id,day));
+  const stepItems=h.rotation?h.items:[...(h.items||[])];
+  // The daily study choice is a single assigned item, never all three.
+  let ticked=0;
+  if(status==="approved"||status==="pending")ticked=stepCount;
+  else if(stepItems.length){
+   if(h.rotation)ticked=Math.min(1,ids.size);
+   else ticked=stepItems.filter(x=>ids.has(x.id)).length;
+  }
+  result.totalTasks++;
+  result.totalSteps+=stepCount;
+  result.tickedSteps+=Math.min(stepCount,ticked);
+  if(status==="approved")result.approvedTasks++;
+  if(status==="pending")result.waitingTasks++;
+  const view=status==="approved"?"approved":status==="pending"?"pending":
+   status==="rejected"?"rejected":ticked?"partial":"none";
+  result.byId[h.id]={status:view,steps:ticked,total:stepCount};
+ });
+ result.completedPercent=result.totalTasks?Math.round(result.approvedTasks/result.totalTasks*100):null;
+ result.checkedPercent=result.totalSteps?Math.round(result.tickedSteps/result.totalSteps*100):null;
+ return result;
+}
+function periodCompletion(d,active,start,end){
+ let planned=0,confirmed=0,steps=0,checkedSteps=0,waiting=0,days=0;
+ for(let cursor=start;cursor<=end;cursor=nextDay(cursor)){
+  const m=dailyCompletion(d,active,cursor);
+  if(!m.totalTasks)continue;
+  days++;planned+=m.totalTasks;confirmed+=m.approvedTasks;
+  steps+=m.totalSteps;checkedSteps+=m.tickedSteps;waiting+=m.waitingTasks;
+ }
+ return {days,planned,confirmed,steps,checkedSteps,waiting,
+  percent:planned?Math.round(confirmed/planned*100):null,
+  checkedPercent:steps?Math.round(checkedSteps/steps*100):null};
+}
+function renderWeeklyChecklist(d,active,anchor){
+ const range=period("week",anchor),week=Array.from({length:7},(_,i)=>nextDay(range.start,i)),
+  byDay=week.map(day=>dailyCompletion(d,active,day)),overall=periodCompletion(d,active,range.start,range.end);
+ const labels=["월","화","수","목","금","토","일"];
+ const headers=week.map((day,i)=>'<th scope="col" class="'+(day===seoulToday()?"is-today":"")+'">'+
+  labels[i]+'<small>'+Number(day.slice(8,10))+'</small></th>').join("");
+ const rows=active.map(h=>{
+  const cells=byDay.map(m=>{
+   const state=m.byId[h.id]||{status:"out"},key=state.status;
+   const mark=key==="approved"?"✓":key==="pending"?"대기":key==="partial"?
+    state.steps+"/"+state.total:key==="rejected"?"다시":"·";
+   const accessible=key==="approved"?"부모 확인 완료":key==="pending"?"확인 대기":
+    key==="partial"?state.steps+"개 체크 / "+state.total+"개":key==="rejected"?"다시 하기":
+    key==="out"?"기록 대상 아님":"미완료";
+   return '<td><span class="week-cell week-'+key+'" title="'+safe(m.day+" "+h.title+" "+accessible)+'" aria-label="'+safe(m.day+" "+h.title+" "+accessible)+'">'+mark+'</span></td>';
+  }).join("");
+  return '<tr><th scope="row">'+safe(h.title)+'</th>'+cells+'</tr>';
+ }).join("");
+ const totals=byDay.map(m=>'<td><span class="week-day-rate">'+(m.completedPercent===null?"—":m.completedPercent+"%")+'</span></td>').join("");
+ const summary='<div class="completion-summary"><div><small>완료한 할 일</small><strong>'+
+  overall.confirmed+' <em>/ '+overall.planned+'</em></strong></div>'+
+  '<div><small>부모 확인 완료율</small><strong class="positive">'+(overall.percent===null?"—":overall.percent+"%")+'</strong></div>'+
+  '<div><small>체크 진행률</small><strong class="neutral">'+(overall.checkedPercent===null?"—":overall.checkedPercent+"%")+'</strong></div></div>';
+ return '<section class="child-weekly"><div class="period-nav">'+
+  el("‹","date-button","statprev")+'<strong>'+dateLabel(range.start)+' ~ '+dateLabel(range.end)+'</strong>'+
+  el("›","date-button","statnext",range.end>=seoulToday()?"disabled":"")+'</div>'+summary+
+  '<div class="week-grid-scroll"><table class="week-matrix"><thead><tr><th scope="col">할 일</th>'+headers+
+  '</tr></thead><tbody>'+rows+'</tbody><tfoot><tr><th scope="row">완료율</th>'+totals+'</tr></tfoot></table></div>'+
+  '<div class="week-legend"><span><b class="week-cell week-approved">✓</b> 확인 완료</span>'+
+  '<span><b class="week-cell week-pending">대기</b> 확인 대기</span>'+
+  '<span><b class="week-cell week-partial">1/4</b> 일부 체크</span></div>'+
+  '<div class="group-head"><h2>이번 주 기록</h2></div>'+renderWeekEvents(d,range.start,range.end)+'</section>';
+}
+function renderWeekEvents(d,start,end){
+ const events=[];
+ d.ledger.filter(l=>l.day>=start&&l.day<=end).forEach(l=>events.push({type:"ledger",day:l.day,
+  at:l.created_at||l.day+"T00:00:00Z",item:l}));
+ d.checks.filter(c=>c.day>=start&&c.day<=end&&c.status==="pending").forEach(c=>events.push({type:"pending",day:c.day,
+  at:c.submitted_at||c.day+"T00:00:00Z",item:c}));
+ Object.entries(d.subchecks||{}).forEach(([key,ids])=>{
+  const bar=key.indexOf("|");if(bar<0||!Array.isArray(ids)||!ids.length)return;
+  const day=key.slice(0,bar),hid=key.slice(bar+1);
+  if(day<start||day>end||check(d,hid,day))return;
+  const h=d.habits.find(x=>x.id===hid);if(!h)return;
+  events.push({type:"partial",day,at:day+"T00:00:00Z",item:{title:h.title,ids,habit:h}});
+ });
+ events.sort((a,b)=>b.at.localeCompare(a.at));
+ const rows=events.map(e=>{
+  let title="",note="",amount="",detail="";
+  if(e.type==="ledger"){
+   const l=e.item,n=Number(l.minutes)||0;
+   title=safe(l.description||"보너스");
+   amount='<strong class="'+(n>=0?"positive":"negative")+'">'+(n>0?"+":"")+n+'분</strong>';
+   note=safe(l.day)+" · "+safe(formatMoment(l.created_at));
+   detail=logDetails(d,l);
+  }else if(e.type==="pending"){
+   const c=e.item,h=d.habits.find(x=>x.id===c.habit_id);
+   title=safe(h?.title||"할 일");note=safe(c.day)+" · "+safe(formatMoment(c.submitted_at));
+   amount='<span class="waiting">확인 대기</span>';
+   if(Array.isArray(c.completed_items)&&c.completed_items.length){
+    detail='<div class="log-details">'+c.completed_items.map(x=>
+     '<span>✓ '+safe(typeof x==="string"?x:x.title)+'</span>').join("")+'</div>';
+   }
+  }else{
+   const info=e.item;
+   title=safe(info.title);note=safe(e.day);amount='<span class="waiting">진행 중</span>';
+   detail='<div class="log-details">'+(info.habit.items||[]).filter(x=>info.ids.includes(x.id)).
+    map(x=>'<span>✓ '+safe(x.title)+'</span>').join("")+'</div>';
+  }
+  return '<div class="week-event"><div><strong>'+title+'</strong><small>'+note+'</small>'+detail+'</div>'+amount+'</div>';
+ }).join("");
+ return '<div class="week-events">'+(rows||'<p class="empty">기록 없음</p>')+'</div>';
+}
+function monthlyWeeks(d,active,anchor){
+ const range=period("month",anchor),parts=[];
+ for(let start=range.start;start<=range.end;){
+  const weekEnd=period("week",start).end,
+   end=weekEnd<=range.end?weekEnd:range.end;
+  parts.push({start,end,label:dateLabel(start)+' ~ '+dateLabel(end),
+   metrics:periodCompletion(d,active,start,end)});
+  start=nextDay(end);
+ }
+ return {range,weeks:parts};
+}
+function weeklyTrendSvg(weeks){
+ const valid=weeks.map((w,i)=>({...w,i})).filter(w=>w.metrics.percent!==null),
+  width=640,height=232,left=45,right=18,top=20,bottom=36,
+  spanX=width-left-right,spanY=height-top-bottom,
+  y=v=>top+spanY*(100-v)/100,
+  x=i=>left+spanX*(weeks.length===1?.5:i/(weeks.length-1));
+ const guides=[0,50,100].map(n=>
+  '<line x1="'+left+'" x2="'+(width-right)+'" y1="'+y(n)+'" y2="'+y(n)+'" stroke="#e1e9e2" stroke-width="1"/>'+
+  '<text x="'+(left-10)+'" y="'+(y(n)+4)+'" text-anchor="end" font-size="12" fill="#79877e">'+n+'</text>').join("");
+ function line(key,color,dash){
+  const data=valid.map(w=>({x:x(w.i),y:y(w.metrics[key]),value:w.metrics[key]}));
+  if(!data.length)return "";
+  const poly='<polyline points="'+data.map(p=>p.x+','+p.y).join(" ")+'" fill="none" stroke="'+color+
+   '" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" '+(dash?'stroke-dasharray="7 6"':"")+'/>';
+  return poly+data.map(p=>'<circle cx="'+p.x+'" cy="'+p.y+'" r="5" fill="'+color+'" stroke="white" stroke-width="2.3"/>').join("");
+ }
+ const labels=weeks.map((w,i)=>'<text x="'+x(i)+'" y="'+(height-10)+'" text-anchor="middle" font-size="13" fill="#62776a">'+(i+1)+'주</text>').join("");
+ return '<svg class="completion-svg" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="월간 주별 확인 완료율과 체크율의 변화" xmlns="http://www.w3.org/2000/svg">'+
+  guides+line("percent","#2e8056",false)+line("checkedPercent","#b48643",true)+labels+'</svg>';
+}
+function renderMonthlyCompletion(d,active,anchor){
+ const {range,weeks}=monthlyWeeks(d,active,anchor),
+  overall=periodCompletion(d,active,range.start,range.end),
+  ledger=summaryRows(d,"month",range).sum;
+ let previous=null;
+ const lines=weeks.map((week,i)=>{
+  const m=week.metrics;
+  let delta='—',deltaClass="";
+  if(m.percent!==null&&previous!==null){
+   const diff=m.percent-previous;delta=(diff>0?"+":"")+diff+"%p";
+   deltaClass=diff>0?"positive":diff<0?"negative":"";
+  }
+  if(m.percent!==null)previous=m.percent;
+  return '<div class="trend-entry"><span class="trend-label">'+(i+1)+'주 <small>'+week.label+'</small></span>'+
+   '<span class="trend-rate">'+(m.percent===null?"—":m.percent+"%")+'</span>'+
+   '<span class="trend-change '+deltaClass+'">'+delta+'</span></div>';
+ }).join("");
+ return '<section class="child-monthly"><div class="period-nav">'+
+  el("‹","date-button","statprev")+'<strong>'+range.title+'</strong>'+
+  el("›","date-button","statnext",range.end>=seoulToday()?"disabled":"")+'</div>'+
+  '<div class="completion-summary month-summary"><div><small>완료한 할 일</small><strong>'+overall.confirmed+
+  ' <em>/ '+overall.planned+'</em></strong></div>'+
+  '<div><small>확인 완료율</small><strong class="positive">'+(overall.percent===null?"—":overall.percent+"%")+'</strong></div>'+
+  '<div><small>체크 진행률</small><strong>'+ (overall.checkedPercent===null?"—":overall.checkedPercent+"%")+'</strong></div></div>'+
+  '<div class="completion-chart"><div class="group-head"><h2>주별 완료율 변화</h2></div>'+
+  '<div class="chart-legend"><span><i class="confirmed-line"></i>확인 완료율</span>'+
+  '<span><i class="checked-line"></i>체크 진행률</span></div>'+
+  weeklyTrendSvg(weeks)+'<div class="trend-rows">'+lines+'</div></div>'+
+  '<div class="month-bonus-summary"><div><small>보너스 적립</small><strong class="positive">+'+time(ledger.plus)+'</strong></div>'+
+  '<div><small>차감 · 사용</small><strong class="negative">−'+time(ledger.minus)+'</strong></div></div>'+
+  '</section>';
 }
 function renderChildProgress(d,active,day){
  let done=0,total=0,confirmed=0,waiting=0;
@@ -308,12 +495,21 @@ function render(){
   (r==="parent"?'<div class="balance-actions">'+el("시간 사용","ghost","use")+'</div>':'')+'</section>';
  const pendingBanner=r==="parent"&&pending?
   '<button type="button" class="pending-banner" data-action="pending"><span class="pending-pulse"></span>확인할 항목 '+pending+'개 <span>보기 ›</span></button>':'';
- const nav=screen==="today"?
-  '<div class="daybar">'+(r==="parent"?el("‹","date-button","prev",'aria-label="전날"'):"")+'<span>'+dateLabel(day)+'</span>'+
-  (r==="parent"?el("›","date-button","next",'aria-label="다음 날" '+(day>=seoulToday()?"disabled":"")):"")+
-  '<span class="spacer"></span>'+el("기록 · 통계","tiny","history")+el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</div>':
-  '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
-  el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
+ const nav=r==="child"?
+  '<nav class="child-view-tabs" aria-label="조회 기간">'+
+   el("오늘","view-tab "+(screen==="today"?"selected":""),"child-tab",'data-tab="today" aria-pressed="'+(screen==="today")+'"')+
+   el("주간","view-tab "+(screen==="week"?"selected":""),"child-tab",'data-tab="week" aria-pressed="'+(screen==="week")+'"')+
+   el("월간","view-tab "+(screen==="month"?"selected":""),"child-tab",'data-tab="month" aria-pressed="'+(screen==="month")+'"')+
+   '<span class="spacer"></span>'+el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</nav>'+
+   (screen==="today"?'<div class="child-day-heading">'+dateLabel(day)+'</div>':""):
+  screen==="today"?
+   '<div class="daybar">'+el("‹","date-button","prev",'aria-label="전날"')+'<span>'+dateLabel(day)+'</span>'+
+   el("›","date-button","next",'aria-label="다음 날" '+(day>=seoulToday()?"disabled":""))+
+   '<span class="spacer"></span>'+el("기록 · 통계","tiny","history")+
+   el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</div>':
+   '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+
+   el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
+   el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
  const taskGroup='<section class="group"><div class="group-head"><h2>할 일</h2>'+
   (r==="parent"?el("+ 항목","tiny","new"):"")+'</div><div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
  const bonusGroup=r==="parent"?'<section class="group"><div class="group-head"><h2>추가 상벌 보너스</h2>'+el("+ 항목","tiny","bonus-new")+'</div>'+
@@ -324,7 +520,10 @@ function render(){
     el("편집","tiny muted","bonus-edit",'data-id="'+safe(item.id)+'"')+
     (item.active!==false?el("적용","tiny apply","bonus-apply",'data-id="'+safe(item.id)+'"'):"")+'</article>';
   }).join("")+'</div></section>':"";
- const content=screen==="today"?taskGroup+bonusGroup:renderHistory(d,statsUnit,statsAnchor);
+ const content=screen==="today"?taskGroup+bonusGroup:
+  screen==="week"?renderWeeklyChecklist(d,active,statsAnchor):
+  screen==="month"?renderMonthlyCompletion(d,active,statsAnchor):
+  renderHistory(d,statsUnit,statsAnchor);
  if(r==="child"){
   app.innerHTML='<main class="wrap view-child screen-'+screen+'">'+header(r)+
    '<aside class="child-aside" aria-label="나의 진행 상황">'+balance+renderChildProgress(d,active,day)+'</aside>'+
@@ -350,7 +549,7 @@ function editor(hid){
  '<div class="form-actions">'+el("취소","ghost","close")+'<button class="primary" type="submit">저장</button></div></form>');
 }
 function adjustment(kind){throw Error("등록된 보너스 항목만 사용할 수 있습니다.");}
-function history(){screen="history";statsAnchor=seoulToday();statsUnit="week";render();}
+function history(){screen=role()==="child"?"week":"history";statsAnchor=seoulToday();statsUnit="week";render();}
 function formatMoment(value){
  if(!value)return "";
  try{return new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(value));}catch(_){return "";}
@@ -516,6 +715,14 @@ document.addEventListener("click",e=>{
    viewDay=seoulToday();screen="today";render();
   }
   else if(act==="today"){screen="today";render();}
+  else if(act==="child-tab"){
+   if(role()!=="child")return;
+   const dest=t.dataset.tab;
+   if(!["today","week","month"].includes(dest))return;
+   screen=dest;
+   if(dest!=="today")statsAnchor=seoulToday();
+   render();
+  }
   else if(act==="prev"){viewDay=nextDay(viewDay,-1);render();}
   else if(act==="next"&&viewDay<seoulToday()){viewDay=nextDay(viewDay);render();}
   else if(act==="toggle")toggleItem(hid,t.dataset.item);
@@ -537,8 +744,8 @@ document.addEventListener("click",e=>{
    screen="today";render();
   }
   else if(act==="statmode"){statsUnit=t.dataset.mode;statsAnchor=seoulToday();render();}
-  else if(act==="statprev"){statsAnchor=movePeriod(statsUnit,statsAnchor,-1);render();}
-  else if(act==="statnext"&&period(statsUnit,statsAnchor).end<seoulToday()){statsAnchor=movePeriod(statsUnit,statsAnchor,1);render();}
+  else if(act==="statprev"){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,-1);render();}
+  else if(act==="statnext"&&period(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor).end<seoulToday()){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,1);render();}
   else if(act==="tools")toolsPanel();
   else if(act==="close")close();
   else if(act==="export")exportData();
