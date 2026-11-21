@@ -254,3 +254,77 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
 @media (prefers-reduced-motion:reduce){
  *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }
+
+
+/* Child progress split layout: the left side is feedback, right side is checkable work. */
+.child-aside,
+.child-work{min-width:0}
+.child-aside{display:flex;flex-direction:column;gap:16px}
+.child-aside .balance{flex:0 0 auto}
+.child-section-title{font-size:17px;font-weight:740;letter-spacing:-.3px;color:#2d4335;margin-bottom:15px}
+.child-progress,.child-week,.child-recent{background:#fff;border:1px solid #e4e9e4;border-radius:18px;padding:20px 21px}
+.child-progress-top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:13px}
+.child-progress-top strong{font-size:39px;letter-spacing:-1.3px;line-height:1}
+.child-progress-top strong span{font-size:22px;color:#89998c;font-weight:580}
+.child-progress-top>span{font-size:18px;font-weight:710;color:#337856}
+.child-progress-track{width:100%;height:12px;border-radius:99px;background:#e7eee8;overflow:hidden}
+.child-progress-track>span{display:block;height:100%;border-radius:inherit;background:#398964;transition:width 180ms ease}
+.child-progress-states{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;color:#6d7e72;font-size:15px}
+.child-progress-states b{font-size:20px;margin-right:4px}
+.child-week-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.child-week-pair>div{min-width:0;background:#f5f8f5;border:1px solid #edf1ec;border-radius:12px;padding:14px}
+.child-week-pair small{display:block;font-size:13px;color:#78867a}
+.child-week-pair strong{display:block;font-size:clamp(17px,1.4vw,23px);font-weight:760;margin-top:9px;white-space:nowrap}
+.child-event{display:flex;align-items:center;gap:16px;border-top:1px solid #eef1ee;padding:13px 0}
+.child-event:first-of-type{border-top:0;padding-top:0}
+.child-event-text{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
+.child-event-text>span{font-size:15px;font-weight:660;overflow-wrap:anywhere}
+.child-event-text small{font-size:12px;color:#839084}
+.child-event-text .child-event-reason{color:#ad615a}
+.child-event>strong{font-size:16px;white-space:nowrap;font-weight:760}
+.child-empty{font-size:14px;color:#899589;margin:0 0 13px}
+.child-history-button{display:block;width:100%;border:1px solid #d7e7da;color:#296d4a;background:#f5faf6;padding:12px 14px;font-size:14px;font-weight:690;border-radius:10px;margin-top:9px}
+.child-work>.daybar{margin:0 0 18px;justify-content:flex-start}
+.child-work>.group,.child-work>.stats{margin:0;min-width:0}
+.child-work>.group .group-head{margin:0 0 18px}
+.child-work .task{min-width:0}
+@media (min-width:980px){
+ .wrap.view-child{
+  grid-template-columns:minmax(350px,.86fr) minmax(0,1.72fr);
+  grid-template-rows:auto minmax(0,1fr);
+  align-items:start;
+ }
+ .view-child>.top{grid-column:1/-1;grid-row:1}
+ .view-child>.child-aside{grid-column:1;grid-row:2;position:sticky;top:28px}
+ .view-child>.child-work{grid-column:2;grid-row:2;display:flex;flex-direction:column;min-width:0}
+ .view-child .child-work>.daybar{grid-column:auto;grid-row:auto;margin:0 0 21px}
+ .view-child .child-work>.group,.view-child .child-work>.stats{grid-column:auto;grid-row:auto;max-width:none}
+ .view-child .child-work .tasks{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (min-width:1650px) and (min-height:850px){
+ .view-child>.child-aside{gap:19px}
+ .view-child .child-progress,.view-child .child-week,.view-child .child-recent{padding:23px 26px}
+ .view-child .child-section-title{font-size:20px;margin-bottom:17px}
+ .view-child .child-progress-top strong{font-size:50px}
+ .view-child .child-progress-top strong span{font-size:26px}
+ .view-child .child-progress-track{height:16px}
+ .view-child .child-progress-states{font-size:17px}
+ .view-child .child-event-text>span{font-size:17px}
+ .view-child .child-event>strong{font-size:19px}
+ .view-child .child-work .task{min-height:155px}
+}
+@media (min-width:640px) and (max-width:979px){
+ .view-child .child-aside{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+ .view-child .child-aside>.balance{grid-column:1/-1}
+ .view-child .child-aside>.child-recent{grid-column:1/-1}
+ .view-child .child-work{margin-top:22px}
+}
+@media (max-width:639px){
+ .view-child .child-aside{gap:11px}
+ .view-child .child-progress,.view-child .child-week,.view-child .child-recent{padding:17px}
+ .view-child .child-work{margin-top:22px}
+ .view-child .child-progress-top strong{font-size:35px}
+ .view-child .child-week-pair strong{font-size:18px}
+ .view-child .child-event-text>span{font-size:14px}
+ .view-child .child-work>.daybar{margin-bottom:15px}
+}

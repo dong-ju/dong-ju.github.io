@@ -252,6 +252,44 @@ function renderTask(d,h,day,r){
   '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
   detail+actionsBottom+'</article>';
 }
+function renderChildProgress(d,active,day){
+ let done=0,total=0,confirmed=0,waiting=0;
+ active.forEach(h=>{
+  const items=shownItems(d,h,day),c=check(d,h.id,day),
+   length=Math.max(1,items.length),status=c?.status||"";
+  total+=length;
+  if(status==="approved"||status==="pending")done+=length;
+  else if(items.length){
+   const ticks=new Set(checked(d,h.id,day));
+   done+=items.filter(x=>ticks.has(x.id)).length;
+  }
+  if(status==="approved")confirmed++;
+  if(status==="pending")waiting++;
+ });
+ const percent=total?Math.round(done/total*100):0;
+ const weekly=summaryRows(d,"week",period("week",day)).sum;
+ const recent=d.ledger.slice(0,4).map(l=>{
+  const num=Number(l.minutes)||0,
+    moment=formatMoment(l.created_at),
+    detail=l.kind==="penalty"&&l.reason?'<small class="child-event-reason">'+safe(l.reason)+'</small>':"";
+  return '<div class="child-event"><div class="child-event-text"><span>'+safe(l.description||"보너스")+'</span>'+
+   '<small>'+safe(l.day)+(moment?' · '+safe(moment):"")+'</small>'+detail+'</div>'+
+   '<strong class="'+(num>=0?"positive":"negative")+'">'+(num>0?"+":"")+num+'분</strong></div>';
+ }).join("");
+ return '<section class="child-progress" aria-label="오늘 진행 상황">'+
+  '<div class="child-section-title">오늘 진행</div>'+
+  '<div class="child-progress-top"><strong>'+done+' <span>/ '+total+'</span></strong><span>'+percent+'%</span></div>'+
+  '<div class="child-progress-track" role="progressbar" aria-label="오늘 체크한 항목" aria-valuemin="0" aria-valuemax="'+total+'" aria-valuenow="'+done+'">'+
+  '<span style="width:'+percent+'%"></span></div>'+
+  '<div class="child-progress-states"><span><b class="positive">'+confirmed+'</b> 완료</span><span><b class="waiting">'+waiting+'</b> 확인 대기</span></div>'+
+  '</section>'+
+  '<section class="child-week"><div class="child-section-title">이번 주</div>'+
+  '<div class="child-week-pair"><div><small>모은 시간</small><strong class="positive">+'+time(weekly.plus)+'</strong></div>'+
+  '<div><small>차감 · 사용</small><strong class="negative">−'+time(weekly.minus)+'</strong></div></div></section>'+
+  '<section class="child-recent"><div class="child-section-title">최근 기록</div>'+
+  (recent||'<p class="child-empty">기록 없음</p>')+
+  el("전체 기록 보기","child-history-button","history")+'</section>';
+}
 function header(r){return '<header class="top"><strong>보너스 시간</strong>'+(r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</header>';}
 function registration(){
  app.innerHTML='<main class="wrap view-registration">'+header(null)+'<section class="pin"><form id="pinForm"><label for="pin">최초 등록 비밀번호</label><input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" autofocus placeholder="4자리">'+
@@ -287,7 +325,13 @@ function render(){
     (item.active!==false?el("적용","tiny apply","bonus-apply",'data-id="'+safe(item.id)+'"'):"")+'</article>';
   }).join("")+'</div></section>':"";
  const content=screen==="today"?taskGroup+bonusGroup:renderHistory(d,statsUnit,statsAnchor);
- app.innerHTML='<main class="wrap view-'+r+' screen-'+screen+'">'+header(r)+balance+pendingBanner+nav+content+'</main>';
+ if(r==="child"){
+  app.innerHTML='<main class="wrap view-child screen-'+screen+'">'+header(r)+
+   '<aside class="child-aside" aria-label="나의 진행 상황">'+balance+renderChildProgress(d,active,day)+'</aside>'+
+   '<div class="child-work">'+nav+content+'</div></main>';
+ }else{
+  app.innerHTML='<main class="wrap view-parent screen-'+screen+'">'+header(r)+balance+pendingBanner+nav+content+'</main>';
+ }
  if(r==="parent"&&pending>lastPending&&document.visibilityState==="visible"){
   try{if("Notification" in window&&Notification.permission==="granted")new Notification("보너스 시간",{body:"확인할 항목 "+pending+"개",tag:"bonus-pending"});}catch(_){}
  }
