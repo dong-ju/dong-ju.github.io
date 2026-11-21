@@ -18,8 +18,8 @@ function nextDay(day,offset=1){let d=new Date(day+"T12:00:00Z");d.setUTCDate(d.g
 function diffDays(a,b){return Math.round((Date.parse(a+"T12:00:00Z")-Date.parse(b+"T12:00:00Z"))/86400000);}
 function uid(){return typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():"p"+Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function safe(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-function fresh(){return {version:6,started_on:seoulToday(),habits:JSON.parse(JSON.stringify(starter)).map(h=>({...h,created_on:seoulToday()})),bonusItems:JSON.parse(JSON.stringify(DEFAULT_BONUSES)),checks:[],ledger:[],subchecks:{},subcheckTimes:{},studyDays:{}};}
-function validate(d){return d&&[1,2,3,4,5,6].includes(d.version)&&Array.isArray(d.habits)&&Array.isArray(d.checks)&&Array.isArray(d.ledger)&&d.habits.length<500&&d.checks.length<100000&&d.ledger.length<100000&&d.habits.every(h=>h&&typeof h.id==="string"&&typeof h.title==="string"&&Number.isInteger(h.reward_minutes));}
+function fresh(){return {version:7,started_on:seoulToday(),habits:JSON.parse(JSON.stringify(starter)).map(h=>({...h,created_on:seoulToday()})),bonusItems:JSON.parse(JSON.stringify(DEFAULT_BONUSES)),checks:[],ledger:[],subchecks:{},subcheckTimes:{},studyDays:{}};}
+function validate(d){return d&&[1,2,3,4,5,6,7].includes(d.version)&&Array.isArray(d.habits)&&Array.isArray(d.checks)&&Array.isArray(d.ledger)&&d.habits.length<500&&d.checks.length<100000&&d.ledger.length<100000&&d.habits.every(h=>h&&typeof h.id==="string"&&typeof h.title==="string"&&Number.isInteger(h.reward_minutes));}
 function migrate(d){
  if(!d.subchecks||typeof d.subchecks!=="object")d.subchecks={};
  if(!d.studyDays||typeof d.studyDays!=="object")d.studyDays={};
@@ -44,6 +44,15 @@ function migrate(d){
   else if(!Array.isArray(h.items))h.items=def?JSON.parse(JSON.stringify(def.items)):[];
   h.items=h.items.map(x=>typeof x==="string"?{id:uid(),title:x}:x).filter(x=>x&&typeof x.id==="string"&&typeof x.title==="string");
  });
+ // Restore the predefined three-step study rotation in older local records.
+ // Keep customized, non-empty study lists intact.
+ const study=d.habits.find(h=>h.id==="study");
+ if(study){
+  if(!Array.isArray(study.items)||!study.items.length){
+   study.items=JSON.parse(JSON.stringify(starter.find(x=>x.id==="study").items));
+  }
+  study.rotation=true;
+ }
  d.habits.forEach(h=>{if(!h.created_on)h.created_on=d.started_on;});
  if(d.version<6){
   // Keep the old habit and its completed check/ledger records for history,
@@ -64,7 +73,7 @@ function migrate(d){
    d.checks.filter(c=>c.habit_id==="posture"&&c.status==="pending").forEach(c=>{c.status="rejected";c.reviewed_at=new Date().toISOString();});
   }
  }
- d.version=6;
+ d.version=7;
  return d;
 }
 function read(){
@@ -271,6 +280,16 @@ function renderTask(d,h,day,r){
    return isParent?'<div class="subitem">'+dot+'<span>'+safe(item.title)+'</span></div>':
     '<button type="button" class="subitem selectable" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" '+(complete?"disabled":"")+'>'+dot+'<span>'+safe(item.title)+'</span></button>';
   }).join("")+'</div>';
+ }
+ if(h.rotation&&h.items.length>1){
+  if(complete){
+   const title=c?.completed_items?.[0]?.title||shownItems(d,h,day)[0]?.title||"";
+   detail+='<div class="study-next">완료한 공부: '+safe(title)+'</div>';
+  }else{
+   const assigned=studyAssignment(d,day);
+   const next=h.items[(assigned.index+1)%h.items.length];
+   detail+='<div class="study-next">다음: '+safe(next.title)+' <span>· 2일 순환</span></div>';
+  }
  }
  let actionsBottom="";
  if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+'</div>';
@@ -632,11 +651,8 @@ function renderChildProgress(d,active,day){
   el("전체 기록 보기","child-history-button","history")+'</section>';
 }
 function header(r){
- const mark='<span class="brand-check" role="img" aria-label="보너스 시간">'+
-  '<svg viewBox="0 0 40 40" width="40" height="40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">'+
-  '<rect x="2" y="2" width="36" height="36" rx="10" fill="#276b4b"/>'+
-  '<path d="M10.5 20.5l6.2 6.1 13-13.3" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>'+
-  '</svg></span>';
+ const mark='<span class="brand-check" role="img" aria-label="보너스 시간 — 좋은 습관의 성장">'+
+  '<img src="/kid-habits/icon.svg?v=habit-growth-1" width="40" height="40" alt="" aria-hidden="true"></span>';
  return '<header class="top">'+mark+'<div class="header-actions">'+(r==="parent"?el("전체 편집","mode","bulk-edit"):"")+
  (r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</div></header>';
 }

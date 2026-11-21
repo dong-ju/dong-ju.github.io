@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#1e5544"/><path d="M150 271l75 74 144-164" fill="none" stroke="#f7e6ab" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="시계 속에서 자라는 새싹">
+  <rect x="2" y="2" width="124" height="124" rx="29" fill="#eff6ec"/>
+  <circle cx="61" cy="55" r="39" fill="#fafdF7" stroke="#2c7254" stroke-width="7"/>
+  <path d="M61 24v7M30 55h6M86 55h6M61 48V34M61 48l16 8" stroke="#327b5a" stroke-width="5.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M61 98C60 87 61 77 64 69" stroke="#327b4f" stroke-width="7" fill="none" stroke-linecap="round"/>
+  <path d="M63 82C46 84 34 76 31 62C48 59 60 67 63 82Z" fill="#a2cb53"/>
+  <path d="M63 77C67 62 80 56 95 59C92 75 81 81 63 77Z" fill="#5ba34b"/>
+  <path d="M36 104h57" stroke="#a7c4a2" stroke-width="5" stroke-linecap="round"/>
+  <path d="M97 18v9M87 28l-5 5M107 28l5 5" stroke="#e4af42" stroke-width="5" stroke-linecap="round"/>
+</svg>
