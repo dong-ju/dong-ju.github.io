@@ -1,13 +1,13 @@
 {
   "id": "/kid-habits/",
-  "name": "우리 아이 게임시간",
-  "short_name": "게임시간",
-  "description": "가족의 습관과 게임시간 보상",
+  "name": "보너스 시간",
+  "short_name": "보너스",
+  "description": "보너스 시간",
   "start_url": "/kid-habits/",
   "scope": "/kid-habits/",
   "display": "standalone",
-  "background_color": "#f6f6f1",
-  "theme_color": "#1e5544",
+  "background_color": "#f7f8f6",
+  "theme_color": "#265941",
   "icons": [
     {
       "src": "/kid-habits/icon-192.png",
