@@ -1,0 +1,31 @@
+{
+  "id": "/kid-habits/",
+  "name": "우리 아이 게임시간",
+  "short_name": "게임시간",
+  "description": "가족의 습관과 게임시간 보상",
+  "start_url": "/kid-habits/",
+  "scope": "/kid-habits/",
+  "display": "standalone",
+  "background_color": "#f6f6f1",
+  "theme_color": "#1e5544",
+  "icons": [
+    {
+      "src": "/kid-habits/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/kid-habits/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/kid-habits/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
