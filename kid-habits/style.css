@@ -428,3 +428,52 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
  .completion-chart{padding:15px 10px}
  .month-bonus-summary>div{padding:13px}
 }
+
+
+/* Read-only child bonus catalogue: show all active presets in the available width. */
+.child-bonus-group{margin-top:22px;min-width:0}
+.child-bonus-group .group-head{margin-bottom:12px!important}
+.child-bonus-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.child-bonus-item{
+ display:flex;flex-direction:column;justify-content:center;gap:10px;
+ padding:14px 16px;min-width:0;min-height:91px;
+ border:1px solid #e1e9e1;border-radius:13px;background:#fff
+}
+.child-bonus-name{font-size:15px;font-weight:660;line-height:1.35;color:#415448;overflow-wrap:anywhere}
+.child-bonus-item strong{font-size:23px;font-weight:800;line-height:1}
+.child-bonus-list .child-empty{grid-column:1/-1;margin:0;padding:14px}
+.view-child .child-work>.child-bonus-group{grid-column:auto;grid-row:auto;max-width:none}
+@media(min-width:1650px) and (min-height:850px){
+ .view-child .child-bonus-group{margin-top:26px}
+ .view-child .child-bonus-list{gap:15px}
+ .view-child .child-bonus-item{padding:22px 24px;min-height:116px}
+ .view-child .child-bonus-name{font-size:19px}
+ .view-child .child-bonus-item strong{font-size:31px}
+}
+@media(max-width:1150px){
+ .view-child .child-bonus-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:680px){
+ .view-child .child-bonus-list{grid-template-columns:1fr}
+ .view-child .child-bonus-item{flex-direction:row;justify-content:space-between;align-items:center;min-height:64px}
+ .view-child .child-bonus-item strong{font-size:20px;white-space:nowrap}
+}
+
+
+/* Wide child screen: tasks and rewards without extra vertical stacking */
+@media(min-width:1250px){
+ .view-child.screen-today .child-work .tasks{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  align-items:start;
+  gap:clamp(12px,1vw,25px);
+ }
+ .view-child.screen-today .child-work .task{
+  padding:clamp(16px,1.2vw,29px);
+ }
+ .view-child.screen-today .child-work .task .subitem{
+  padding-left:6px;
+ }
+ .view-child.screen-today .child-work .child-bonus-group{
+  margin-top:clamp(18px,1.5vw,29px);
+ }
+}

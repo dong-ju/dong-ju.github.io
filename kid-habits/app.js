@@ -4,22 +4,22 @@ const STORE="kid_habits_personal_v1",SETUP="kid_habits_personal_setup_v1",MODE="
 const app=document.getElementById("app"),dialog=document.getElementById("modal"),dialogBody=document.getElementById("modalBody");
 let viewDay=seoulToday(),screen="today",statsUnit="week",statsAnchor=seoulToday(),lastPending=0;
 const DEFAULT_BONUSES=[
+ {id:"posture-bonus",title:"바른 자세",minutes:10,active:true},
  {id:"attitude",title:"바르지 않은 태도로 행동하기",minutes:-20,active:true},
  {id:"tantrum",title:"떼쓰기",minutes:-10,active:true}
 ];
 const starter=[
  {id:"morning",title:"아침 할 일",reward_minutes:5,sort_order:1,active:true,items:[{id:"bathroom",title:"소변 보기"},{id:"brush",title:"치카하기"},{id:"wash",title:"세수하기"},{id:"water",title:"물 마시기"}]},
  {id:"study",title:"공부하기",reward_minutes:10,sort_order:2,active:true,rotation:true,items:[{id:"math",title:"수학"},{id:"read",title:"책 읽기"},{id:"write",title:"받아쓰기 / 바르게 쓰기"}]},
- {id:"sleep",title:"잠들기",reward_minutes:5,sort_order:3,active:true,items:[]},
- {id:"posture",title:"바른 자세",reward_minutes:10,sort_order:4,active:true,items:[]}
+ {id:"sleep",title:"잠들기",reward_minutes:5,sort_order:3,active:true,items:[]}
 ];
 function seoulToday(){let p=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(x=>[x.type,x.value]));return p.year+"-"+p.month+"-"+p.day;}
 function nextDay(day,offset=1){let d=new Date(day+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+offset);return d.toISOString().slice(0,10);}
 function diffDays(a,b){return Math.round((Date.parse(a+"T12:00:00Z")-Date.parse(b+"T12:00:00Z"))/86400000);}
 function uid(){return typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():"p"+Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function safe(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-function fresh(){return {version:5,started_on:seoulToday(),habits:JSON.parse(JSON.stringify(starter)).map(h=>({...h,created_on:seoulToday()})),bonusItems:JSON.parse(JSON.stringify(DEFAULT_BONUSES)),checks:[],ledger:[],subchecks:{},subcheckTimes:{},studyDays:{}};}
-function validate(d){return d&&[1,2,3,4,5].includes(d.version)&&Array.isArray(d.habits)&&Array.isArray(d.checks)&&Array.isArray(d.ledger)&&d.habits.length<500&&d.checks.length<100000&&d.ledger.length<100000&&d.habits.every(h=>h&&typeof h.id==="string"&&typeof h.title==="string"&&Number.isInteger(h.reward_minutes));}
+function fresh(){return {version:6,started_on:seoulToday(),habits:JSON.parse(JSON.stringify(starter)).map(h=>({...h,created_on:seoulToday()})),bonusItems:JSON.parse(JSON.stringify(DEFAULT_BONUSES)),checks:[],ledger:[],subchecks:{},subcheckTimes:{},studyDays:{}};}
+function validate(d){return d&&[1,2,3,4,5,6].includes(d.version)&&Array.isArray(d.habits)&&Array.isArray(d.checks)&&Array.isArray(d.ledger)&&d.habits.length<500&&d.checks.length<100000&&d.ledger.length<100000&&d.habits.every(h=>h&&typeof h.id==="string"&&typeof h.title==="string"&&Number.isInteger(h.reward_minutes));}
 function migrate(d){
  if(!d.subchecks||typeof d.subchecks!=="object")d.subchecks={};
  if(!d.studyDays||typeof d.studyDays!=="object")d.studyDays={};
@@ -45,7 +45,26 @@ function migrate(d){
   h.items=h.items.map(x=>typeof x==="string"?{id:uid(),title:x}:x).filter(x=>x&&typeof x.id==="string"&&typeof x.title==="string");
  });
  d.habits.forEach(h=>{if(!h.created_on)h.created_on=d.started_on;});
- d.version=5;
+ if(d.version<6){
+  // Keep the old habit and its completed check/ledger records for history,
+  // but no longer offer it as a child-checkable task.
+  const posture=d.habits.find(h=>h.id==="posture");
+  if(posture){
+   if(!d.bonusItems.some(b=>b.id==="posture-bonus"||b.title==="바른 자세")){
+    d.bonusItems.unshift({
+     id:"posture-bonus",title:posture.title==="하루 종일 바른 자세 하기"?"바른 자세":posture.title,
+     minutes:posture.reward_minutes,active:posture.active!==false
+    });
+   }
+   posture.was_active_before_move=posture.active!==false;
+   posture.moved_to_parent_on=seoulToday();
+   posture.active=false;
+   posture.moved_to_parent_bonus=true;
+   // Clear obsolete requests without erasing past approved completions.
+   d.checks.filter(c=>c.habit_id==="posture"&&c.status==="pending").forEach(c=>{c.status="rejected";c.reviewed_at=new Date().toISOString();});
+  }
+ }
+ d.version=6;
  return d;
 }
 function read(){
@@ -261,10 +280,15 @@ function renderTask(d,h,day,r){
   '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
   detail+actionsBottom+'</article>';
 }
+function archivedHabitsOn(d,day){
+ return d.habits.filter(h=>h.moved_to_parent_bonus&&h.was_active_before_move&&
+  (day<h.moved_to_parent_on||(day===h.moved_to_parent_on&&check(d,h.id,day)?.status==="approved")));
+}
 function dailyCompletion(d,active,day){
  const current=seoulToday();
+ const relevant=active.concat(archivedHabitsOn(d,day).filter(h=>!active.some(x=>x.id===h.id)));
  const result={day,totalTasks:0,approvedTasks:0,waitingTasks:0,totalSteps:0,tickedSteps:0,byId:{}};
- active.forEach(h=>{
+ relevant.forEach(h=>{
   const available=day<=current&&day>=d.started_on&&day>=(h.created_on||d.started_on);
   const stepCount=h.rotation&&h.items.length?1:Math.max(1,h.items.length);
   if(!available){result.byId[h.id]={status:"out",steps:0,total:stepCount};return;}
@@ -309,7 +333,10 @@ function renderWeeklyChecklist(d,active,anchor){
  const labels=["월","화","수","목","금","토","일"];
  const headers=week.map((day,i)=>'<th scope="col" class="'+(day===seoulToday()?"is-today":"")+'">'+
   labels[i]+'<small>'+Number(day.slice(8,10))+'</small></th>').join("");
- const rows=active.map(h=>{
+ const displayed=active.concat(d.habits.filter(h=>h.moved_to_parent_bonus&&h.was_active_before_move&&
+  week.some(day=>day>=d.started_on&&day>=h.created_on&&
+   (day<h.moved_to_parent_on||(day===h.moved_to_parent_on&&check(d,h.id,day)?.status==="approved")))));
+ const rows=displayed.map(h=>{
   const cells=byDay.map(m=>{
    const state=m.byId[h.id]||{status:"out"},key=state.status;
    const mark=key==="approved"?"✓":key==="pending"?"대기":key==="partial"?
@@ -439,6 +466,16 @@ function renderMonthlyCompletion(d,active,anchor){
   '<div><small>차감 · 사용</small><strong class="negative">−'+time(ledger.minus)+'</strong></div></div>'+
   '</section>';
 }
+function renderChildBonusItems(d){
+ const items=d.bonusItems.filter(x=>x.active!==false).sort((a,b)=>b.minutes-a.minutes);
+ const cards=items.map(item=>
+  '<div class="child-bonus-item"><span class="child-bonus-name">'+safe(item.title)+'</span>'+
+  '<strong class="'+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</strong></div>'
+ ).join("");
+ return '<section class="child-bonus-group" aria-label="추가 상벌 보너스">'+
+  '<div class="group-head"><h2>추가 상벌 보너스</h2></div>'+
+  '<div class="child-bonus-list">'+(cards||'<p class="child-empty">등록된 항목 없음</p>')+'</div></section>';
+}
 function renderChildProgress(d,active,day){
  let done=0,total=0,confirmed=0,waiting=0;
  active.forEach(h=>{
@@ -520,9 +557,10 @@ function render(){
     el("편집","tiny muted","bonus-edit",'data-id="'+safe(item.id)+'"')+
     (item.active!==false?el("적용","tiny apply","bonus-apply",'data-id="'+safe(item.id)+'"'):"")+'</article>';
   }).join("")+'</div></section>':"";
- const content=screen==="today"?taskGroup+bonusGroup:
-  screen==="week"?renderWeeklyChecklist(d,active,statsAnchor):
-  screen==="month"?renderMonthlyCompletion(d,active,statsAnchor):
+ const childBonus=r==="child"?renderChildBonusItems(d):"";
+ const content=screen==="today"?taskGroup+(r==="parent"?bonusGroup:childBonus):
+  screen==="week"?renderWeeklyChecklist(d,active,statsAnchor)+childBonus:
+  screen==="month"?renderMonthlyCompletion(d,active,statsAnchor)+childBonus:
   renderHistory(d,statsUnit,statsAnchor);
  if(r==="child"){
   app.innerHTML='<main class="wrap view-child screen-'+screen+'">'+header(r)+
