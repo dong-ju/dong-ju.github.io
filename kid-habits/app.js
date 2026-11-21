@@ -61,6 +61,34 @@ function log(d,kind,minutes,description,day,checkId,extra){
  d.ledger.unshift(Object.assign({id:uid(),kind,minutes,description,day,check_id:checkId||null,
   actor_id:"personal-parent",created_at:new Date().toISOString()},extra||{}));
 }
+function actionDate(value){
+ if(!value)return null;
+ const date=new Date(value);if(Number.isNaN(date.getTime()))return null;
+ const parts=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(date).map(p=>[p.type,p.value]));
+ return parts.year+"-"+parts.month+"-"+parts.day;
+}
+function sameActionDay(value){return actionDate(value)===seoulToday();}
+function canCancelLedger(l){return !!l&&["habit","bonus","penalty","spend"].includes(l.kind)&&sameActionDay(l.created_at);}
+function undoCheck(d,c){
+ const h=d.habits.find(h=>h.id===c.habit_id);
+ d.ledger=d.ledger.filter(l=>!(l.kind==="habit"&&l.check_id===c.id));
+ d.checks=d.checks.filter(x=>x.id!==c.id);
+ const k=checkKey(c.habit_id,c.day);
+ d.subchecks[k]=[];if(d.subcheckTimes)d.subcheckTimes[k]={};
+ if(h?.rotation)Object.keys(d.studyDays||{}).filter(x=>x>c.day).forEach(x=>delete d.studyDays[x]);
+}
+function cancelLedger(id){
+ requireParent();const d=read(),entry=d.ledger.find(l=>l.id===id);
+ if(!entry)throw Error("기록을 찾을 수 없습니다.");
+ if(!canCancelLedger(entry))throw Error("적용한 당일에만 취소할 수 있습니다.");
+ if(!confirm(entry.description+" ("+(entry.minutes>0?"+":"")+entry.minutes+"분)\n취소하면 이 기록이 삭제됩니다. 계속할까요?"))return false;
+ if(entry.kind==="habit"){
+  const c=d.checks.find(x=>x.id===entry.check_id&&x.status==="approved");
+  if(!c)throw Error("완료 내역을 찾을 수 없습니다.");
+  undoCheck(d,c);
+ }else d.ledger=d.ledger.filter(l=>l.id!==entry.id);
+ save(d);render();notify("기록을 취소했습니다.");return true;
+}
 function requireParent(){if(role()!=="parent")throw Error("부모 화면에서만 사용할 수 있습니다.");}
 function habit(d,hid){const h=d.habits.find(x=>x.id===hid&&x.active);if(!h)throw Error("항목을 찾지 못했습니다.");return h;}
 function studyAssignment(d,day){
@@ -125,12 +153,20 @@ function review(hid,status){
   }
   c.confirmed_items=Array.from(c.completed_items);
   log(d,"habit",h.reward_minutes,h.title,day,c.id,{details:c.completed_items});
-}
- if(status==="rejected"){
-  if(c.status==="approved")log(d,"reversal",-c.awarded_minutes,h.title,day,c.id,{reason:"완료 취소"});
-  c.status="rejected";c.awarded_minutes=0;d.subchecks[checkKey(hid,day)]=[];d.subcheckTimes[checkKey(hid,day)]={};
+  c.reviewed_at=new Date().toISOString();c.reviewed_by="personal-parent";
  }
- c.reviewed_at=new Date().toISOString();c.reviewed_by="personal-parent";save(d);render();
+ if(status==="rejected"){
+  if(c.status==="approved"){
+   if(!sameActionDay(c.reviewed_at))throw Error("확인한 당일에만 취소할 수 있습니다.");
+   if(!confirm(h.title+" 완료를 취소할까요?\n적립 기록이 삭제됩니다."))return;
+   undoCheck(d,c);
+  }else{
+   c.status="rejected";c.awarded_minutes=0;
+   d.subchecks[checkKey(hid,day)]=[];d.subcheckTimes[checkKey(hid,day)]={};
+   c.reviewed_at=new Date().toISOString();c.reviewed_by="personal-parent";
+  }
+ }
+ save(d);render();
 }
 function cycleStudy(){
  requireParent();const d=read(),h=habit(d,"study"),c=check(d,"study",viewDay);
@@ -194,7 +230,7 @@ function renderTask(d,h,day,r){
  const checkedMark='<span class="dot '+(allTicked?"on":"")+'">'+(allTicked?"✓":"")+'</span>';
  const label='<span class="task-name">'+safe(h.title)+'</span>';
  const titleRow=!isParent&&items.length===0?
-  '<button type="button" class="task-label task-click" data-action="complete" data-id="'+safe(h.id)+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
+  '<button type="button" class="task-label task-click" data-action="complete" data-id="'+safe(h.id)+'" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
   '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
  if(h.rotation&&isParent&&h.items.length>1&&!complete)actions.push(el("다음","tiny","cycle",'aria-label="다음 공부 항목"'));
@@ -210,7 +246,7 @@ function renderTask(d,h,day,r){
  }
  let actionsBottom="";
  if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+el("다시 하기","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
- else if(isParent&&complete)actionsBottom='<div class="task-foot">'+el("완료 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
+ else if(isParent&&complete&&sameActionDay(c?.reviewed_at))actionsBottom='<div class="task-foot">'+el("완료 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
  return '<article class="task '+(complete?"task-done":"")+'"><div class="task-top">'+titleRow+
   '<div class="right">'+(state?'<span class="state '+(complete?"done":"")+'">'+state+'</span>':'')+
   '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
@@ -218,7 +254,7 @@ function renderTask(d,h,day,r){
 }
 function header(r){return '<header class="top"><strong>보너스 시간</strong>'+(r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</header>';}
 function registration(){
- app.innerHTML='<main class="wrap">'+header(null)+'<section class="pin"><form id="pinForm"><label for="pin">최초 등록 비밀번호</label><input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" autofocus placeholder="4자리">'+
+ app.innerHTML='<main class="wrap view-registration">'+header(null)+'<section class="pin"><form id="pinForm"><label for="pin">최초 등록 비밀번호</label><input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" autofocus placeholder="4자리">'+
  '<button type="submit" class="primary">등록</button></form></section></main>';
 }
 function render(){
@@ -231,22 +267,28 @@ function render(){
  }
  const pending=d.checks.filter(c=>c.status==="pending").length;
  const balance='<section class="balance"><span>남은 보너스 시간</span><strong>'+time(totals(d))+'</strong>'+
-  (r==="parent"?'<div class="balance-actions">'+el("부모 관리 보너스","primary","bonuses")+el("시간 사용","ghost","use")+'</div>':'')+'</section>';
+  (r==="parent"?'<div class="balance-actions">'+el("시간 사용","ghost","use")+'</div>':'')+'</section>';
  const pendingBanner=r==="parent"&&pending?
   '<button type="button" class="pending-banner" data-action="pending"><span class="pending-pulse"></span>확인할 항목 '+pending+'개 <span>보기 ›</span></button>':'';
  const nav=screen==="today"?
   '<div class="daybar">'+(r==="parent"?el("‹","date-button","prev",'aria-label="전날"'):"")+'<span>'+dateLabel(day)+'</span>'+
   (r==="parent"?el("›","date-button","next",'aria-label="다음 날" '+(day>=seoulToday()?"disabled":"")):"")+
-  '<span class="spacer"></span>'+el("기록 · 통계","tiny","history")+
-  (r==="parent"?el("+ 항목","tiny","new"):"")+el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</div>':
+  '<span class="spacer"></span>'+el("기록 · 통계","tiny","history")+el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</div>':
   '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
   el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
- const content=screen==="today"?
-  '<section class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</section>':
-  renderHistory(d,statsUnit,statsAnchor);
- app.innerHTML='<main class="wrap">'+header(r)+balance+pendingBanner+nav+content+'</main>';
+ const taskGroup='<section class="group"><div class="group-head"><h2>할 일</h2>'+
+  (r==="parent"?el("+ 항목","tiny","new"):"")+'</div><div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
+ const bonusGroup=r==="parent"?'<section class="group"><div class="group-head"><h2>추가 상벌 보너스</h2>'+el("+ 항목","tiny","bonus-new")+'</div>'+
+  '<div class="bonus-list">'+d.bonusItems.map(item=>{
+   const amount=(item.minutes>0?"+":"")+item.minutes+"분";
+   return '<article class="bonus-entry '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
+    '<span class="bonus-amount '+(item.minutes>0?"positive":"negative")+'">'+amount+'</span>'+
+    el("편집","tiny muted","bonus-edit",'data-id="'+safe(item.id)+'"')+
+    (item.active!==false?el("적용","tiny apply","bonus-apply",'data-id="'+safe(item.id)+'"'):"")+'</article>';
+  }).join("")+'</div></section>':"";
+ const content=screen==="today"?taskGroup+bonusGroup:renderHistory(d,statsUnit,statsAnchor);
+ app.innerHTML='<main class="wrap view-'+r+' screen-'+screen+'">'+header(r)+balance+pendingBanner+nav+content+'</main>';
  if(r==="parent"&&pending>lastPending&&document.visibilityState==="visible"){
-  // In-app notice on the same browser. Nothing is transmitted to a separate phone.
   try{if("Notification" in window&&Notification.permission==="granted")new Notification("보너스 시간",{body:"확인할 항목 "+pending+"개",tag:"bonus-pending"});}catch(_){}
  }
  lastPending=pending;
@@ -362,9 +404,12 @@ function renderHistory(d,unit,anchor){
     detailsUI(p.details)+'</div><b class="waiting">진행 중</b></div>';
   }
   const l=row.data,num=Number(l.minutes)||0;
+  const cancel=role()==="parent"&&canCancelLedger(l)?
+   el("취소","tiny cancel-record","cancel-record",'data-id="'+safe(l.id)+'" title="당일 적용 기록 취소"'):"";
   return '<div class="log"><div><strong>'+safe(l.description||labels[l.kind])+'</strong>'+
    '<small>'+safe(l.day)+' · '+formatMoment(l.created_at)+' · '+(labels[l.kind]||"")+'</small>'+
-   logDetails(d,l)+'</div><b class="'+(num>=0?"positive":"negative")+'">'+(num>0?"+":"")+num+'분</b></div>';
+   logDetails(d,l)+'</div><div class="log-end"><b class="'+(num>=0?"positive":"negative")+'">'+(num>0?"+":"")+num+'분</b>'+
+   cancel+'</div></div>';
  }).join("");
  return '<section class="stats">'+
   '<div class="period-nav">'+el("‹","date-button","statprev")+'<strong>'+range.title+'</strong>'+
@@ -394,7 +439,7 @@ function bonusEditor(id){
   '<option value="subtract" '+(item?.minutes<0?"selected":"")+'>차감 (−)</option></select></label>'+
   '<label>시간 (분)<input name="minutes" type="number" min="1" max="300" value="'+Math.abs(item?.minutes||10)+'" required></label>'+
   (item?'<label class="inline"><input type="checkbox" name="active" '+(item.active!==false?"checked":"")+'> 사용</label>':"")+
-  '<div class="form-actions">'+el("취소","ghost","bonuses")+'<button type="submit" class="primary">저장</button></div></form>');
+  '<div class="form-actions">'+el("취소","ghost","close")+'<button type="submit" class="primary">저장</button></div></form>');
 }
 function bonusApply(id){
  const item=read().bonusItems.find(x=>x.id===id&&x.active!==false);
@@ -403,7 +448,7 @@ function bonusApply(id){
   '<input type="hidden" name="id" value="'+safe(item.id)+'">'+
   '<div class="apply-value '+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</div>'+
   '<label>사유 (선택)<input name="reason" maxlength="100" placeholder="필요할 때만 작성"></label>'+
-  '<div class="form-actions">'+el("취소","ghost","bonuses")+'<button class="primary" type="submit">적용</button></div></form>');
+  '<div class="form-actions">'+el("취소","ghost","close")+'<button class="primary" type="submit">확인 후 적용</button></div></form>');
 }
 function useDialog(){
  open('<form id="useForm" class="form"><h2>보너스 시간 사용</h2>'+
@@ -440,6 +485,7 @@ document.addEventListener("click",e=>{
   else if(act==="bonus-new")bonusEditor(null);
   else if(act==="bonus-edit")bonusEditor(hid);
   else if(act==="bonus-apply")bonusApply(hid);
+  else if(act==="cancel-record")cancelLedger(hid);
   else if(act==="use")useDialog();
   else if(act==="pending"){
    const pending=read().checks.filter(c=>c.status==="pending").sort((a,b)=>b.day.localeCompare(a.day));
@@ -471,9 +517,16 @@ document.addEventListener("submit",e=>{
   }
   if(f.id==="bonusItemForm"){
    saveBonusItem({id:v.id,title:v.title,minutes:v.minutes,type:v.type,active:!!f.querySelector('[name="active"]')?.checked});
-   bonusesPanel();
+   close();
   }
-  if(f.id==="bonusApplyForm"){applyBonusItem(v.id,v.reason);close();}
+  if(f.id==="bonusApplyForm"){
+   const item=read().bonusItems.find(x=>x.id===v.id&&x.active!==false);
+   if(!item)throw Error("적용할 항목을 찾지 못했습니다.");
+   const amount=(item.minutes>0?"+":"")+item.minutes+"분";
+   const reason=String(v.reason||"").trim();
+   if(!confirm(item.title+" · "+amount+(reason?"\n사유: "+reason:"")+"\n적용하시겠습니까?"))return;
+   applyBonusItem(v.id,reason);close();
+  }
   if(f.id==="useForm"){useTime(v.minutes);close();}
  }catch(err){notify(err.message||"저장 실패");}
 });
