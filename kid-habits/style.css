@@ -1,0 +1,64 @@
+:root{color-scheme:light;font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;color:#23322c;background:#f7f8f6;font-synthesis:none}
+*{box-sizing:border-box}
+body{margin:0;min-height:100dvh}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #297959;outline-offset:2px}
+.wrap{width:min(100% - 36px,620px);margin:0 auto;padding:28px 0 60px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px}
+.top strong{font-size:20px;font-weight:750;letter-spacing:-.6px}
+.mode{padding:8px 13px;border:1px solid #d9e3db;border-radius:10px;background:white;color:#345947;font-size:13px;font-weight:650}
+.balance{padding:24px;border-radius:20px;background:#265941;color:white;display:flex;flex-direction:column;align-items:flex-start;gap:7px}
+.balance>span{font-size:13px;color:#d4e6da}
+.balance>strong{font-size:43px;font-weight:760;letter-spacing:-1.5px;line-height:1.2}
+.balance-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+button.primary{border:1px solid #2e7252;background:#2d7454;color:white;font-weight:680;padding:10px 16px;border-radius:10px;font-size:14px}
+.balance button.primary{background:white;color:#24583f;border-color:white}
+button.ghost{border:1px solid #dce4dd;background:white;color:#40574a;padding:10px 14px;border-radius:10px;font-size:14px}
+.balance button.ghost{background:transparent;color:white;border-color:#7aa18d}
+button.tiny{border:1px solid #dfe6e0;background:#fff;color:#4b6354;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+button.tiny.muted{color:#748077;border-color:transparent}
+.daybar{display:flex;align-items:center;gap:8px;margin:23px 0 12px;padding:0 2px;color:#56675d;font-size:14px;font-weight:600}
+.daybar .spacer{flex:1}
+.date-button{border:0;background:transparent;color:#62766a;padding:5px 9px;font-size:21px}
+.tasks{display:flex;flex-direction:column;gap:9px}
+.task{background:white;border:1px solid #e4e9e4;border-radius:15px;padding:17px 18px}
+.task-top{display:flex;justify-content:space-between;align-items:center;gap:9px;flex-wrap:wrap}
+.task-name{font-size:16px;font-weight:720;letter-spacing:-.4px}
+.right{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.reward{font-size:13px;font-weight:720;color:#27704c;white-space:nowrap}
+.state{font-size:12px;color:#8d6b36;background:#fcf5e4;border-radius:6px;padding:4px 7px}
+.state.done{color:#2a7751;background:#eaf4ed}
+.subtasks{border-top:1px solid #f0f3f0;margin-top:13px;padding-top:10px;display:grid;gap:2px}
+.subitem{display:flex;gap:11px;align-items:center;width:100%;padding:9px 4px;border:0;background:transparent;text-align:left;color:#465a4e;font-size:14px}
+.subitem.selectable:hover{background:#f6f9f6;border-radius:7px}
+.dot{border:1.5px solid #b5c3b8;border-radius:5px;width:19px;height:19px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;font-size:12px;color:white}
+.dot.on{border-color:#2e7b54;background:#2e7b54}
+.task-foot{margin-top:12px;display:flex;gap:7px}
+.task-foot button{padding:8px 13px;font-size:13px}
+#modal{border:1px solid #e5eae5;border-radius:18px;padding:0;width:min(92vw,430px);max-height:min(80dvh,760px);box-shadow:0 18px 50px #14231926}
+#modal::backdrop{background:#1c2a2290}
+#modalBody{padding:23px;overflow-y:auto}
+.form{display:grid;gap:15px}
+.form h2,.modal-head h2{font-size:20px;letter-spacing:-.5px;margin:0}
+.form label{display:grid;gap:7px;color:#536357;font-size:13px;font-weight:630}
+.form input:not([type="checkbox"]),.form textarea{width:100%;border:1px solid #dce5dc;border-radius:9px;background:white;padding:11px 12px;outline-offset:2px;color:#23322c;font-size:15px}
+.form textarea{resize:vertical;line-height:1.5;min-height:88px}
+.form label.inline{display:flex;align-items:center;gap:9px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:5px}
+.form-actions button{flex:1}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.log{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #eef1ee;padding:12px 0;gap:12px}
+.log strong{display:block;font-size:14px;font-weight:630}
+.log small{font-size:12px;color:#87918a;display:block;margin-top:4px}
+.log b{font-size:14px;font-weight:730;color:#765957;white-space:nowrap}
+.log b.positive{color:#27704c}
+.empty{text-align:center;color:#8a978b;font-size:14px;padding:28px}
+.pin{margin:26vh auto 0;width:min(100%,310px);background:#fff;border:1px solid #e3e9e3;border-radius:16px;padding:23px}
+.pin form{display:grid;gap:12px}
+.pin label{font-size:14px;font-weight:680}
+.pin input{width:100%;border:1px solid #dce5dc;border-radius:9px;padding:12px;font-size:18px;letter-spacing:3px;text-align:center}
+#toast{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);background:#213f2d;color:white;border-radius:9px;padding:11px 16px;font-size:13px;box-shadow:0 6px 24px #0002;z-index:10}
+#toast[hidden]{display:none}
+@media(max-width:480px){.wrap{width:calc(100% - 28px);padding-top:18px}.top{margin-bottom:20px}.balance{padding:21px}.balance>strong{font-size:38px}.task{padding:14px 15px}.task-top{align-items:flex-start}.right{gap:5px}.reward{font-size:12px}.daybar{gap:4px}.balance-actions{width:100%}.balance-actions button{flex:1;padding:9px 8px}.subitem{padding:10px 4px}}
