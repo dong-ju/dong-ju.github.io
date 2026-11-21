@@ -697,51 +697,117 @@ function render(){
  lastPending=pending;
 }
 function open(content){dialogBody.innerHTML=content;if(!dialog.open)dialog.showModal();}
-function close(){dialog.close();}
+function close(){
+ const form=document.getElementById("bulkForm");
+ if(form?.dataset.dirty==="1"&&!confirm("저장하지 않은 변경사항을 버릴까요?"))return;
+ dialog.close();
+}
 function notify(msg){const el=document.getElementById("toast");el.textContent=msg;el.hidden=false;clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>el.hidden=true,2400);}
 
 function bulkTaskRow(h){
- const entry=h||{id:"",title:"",reward_minutes:5,items:[],active:true};
- return '<div class="bulk-row bulk-task-row" data-created="'+(!h?"1":"0")+'">'+
-  '<input type="hidden" name="task-id" value="'+safe(entry.id)+'">'+
-  '<div class="bulk-row-head"><span class="bulk-row-index">'+(h?safe(h.title):"새 할 일")+'</span>'+
-  '<label class="bulk-active"><input type="checkbox" name="task-active" '+(entry.active?"checked":"")+'> 사용</label>'+
-  (!h?el("삭제","tiny muted","bulk-remove"):"")+'</div>'+
-  '<div class="bulk-inline-fields"><label>이름<input name="task-title" maxlength="80" required value="'+safe(entry.title)+'"></label>'+
-  '<label>보너스 (분)<input name="task-minutes" type="number" min="1" max="180" required value="'+entry.reward_minutes+'"></label></div>'+
-  '<label>하부 항목 <small>한 줄에 하나씩</small><textarea name="task-items" rows="3">'+
-  safe(entry.items.map(x=>x.title).join("\n"))+'</textarea></label></div>';
+ const e=h||{id:"",title:"",reward_minutes:5,items:[],active:true};
+ const subs=(e.items||[]).map(item=>bulkSubRow(item.title)).join("");
+ return '<details name="bulk-tasks" class="bulk-row bulk-task-row" data-created="'+(!h?"1":"0")+'" '+(!h?"open":"")+'>'+
+  '<summary class="bulk-summary"><span class="bulk-summary-left">'+
+  '<strong class="bulk-summary-title">'+safe(e.title||"새 할 일")+'</strong>'+
+  '<small class="bulk-summary-extra">+'+e.reward_minutes+'분 · '+(e.items.length?e.items.length+"개 하위 항목":"단일 체크")+'</small>'+
+  '</span><span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
+  '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
+  '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
+  '<div class="bulk-inline-fields"><label>할 일 이름<input name="task-title" maxlength="80" value="'+safe(e.title)+'"></label>'+
+  '<label>적립 시간 (분)<input name="task-minutes" type="number" min="1" max="180" value="'+e.reward_minutes+'"></label></div>'+
+  '<div class="bulk-subsection"><div class="bulk-subhead"><strong>하위 항목</strong>'+
+  el("+ 추가","tiny","bulk-add-sub")+'</div>'+
+  '<div class="bulk-subitems">'+subs+'</div>'+
+  '<textarea name="task-items" class="bulk-hidden-items" hidden tabindex="-1" aria-hidden="true">'+
+  safe(e.items.map(x=>x.title).join("\n"))+'</textarea></div>'+
+  '<div class="bulk-row-options"><label class="bulk-active"><input type="checkbox" name="task-active" '+(e.active?"checked":"")+'> 사용하기</label>'+
+  (!h?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></details>';
+}
+function bulkSubRow(value){
+ return '<div class="bulk-subitem"><input type="text" name="sub-title" aria-label="하위 항목" maxlength="48" placeholder="하위 항목 이름" value="'+safe(value||"")+'">'+
+  el("×","tiny muted","bulk-remove-sub",'aria-label="하위 항목 삭제"')+'</div>';
 }
 function bulkBonusRow(item){
  const b=item||{id:"",title:"",minutes:10,active:true};
- return '<div class="bulk-row bulk-bonus-row" data-created="'+(!item?"1":"0")+'">'+
-  '<input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
-  '<div class="bulk-row-head"><span class="bulk-row-index">'+(item?safe(item.title):"새 상벌")+'</span>'+
-  '<label class="bulk-active"><input type="checkbox" name="bonus-active" '+(b.active!==false?"checked":"")+'> 사용</label>'+
-  (!item?el("삭제","tiny muted","bulk-remove"):"")+'</div>'+
-  '<label>이름<input name="bonus-title" maxlength="80" required value="'+safe(b.title)+'"></label>'+
-  '<div class="bulk-inline-fields"><label>종류<select name="bonus-type">'+
-  '<option value="add" '+(b.minutes>0?"selected":"")+'>추가 (+)</option>'+
-  '<option value="subtract" '+(b.minutes<0?"selected":"")+'>차감 (−)</option></select></label>'+
-  '<label>시간 (분)<input name="bonus-minutes" type="number" min="1" max="300" required value="'+Math.abs(b.minutes)+'"></label></div></div>';
+ return '<details name="bulk-bonuses" class="bulk-row bulk-bonus-row" data-created="'+(!item?"1":"0")+'" '+(!item?"open":"")+'>'+
+  '<summary class="bulk-summary"><span class="bulk-summary-left">'+
+  '<strong class="bulk-summary-title">'+safe(b.title||"새 상벌")+'</strong>'+
+  '<small class="bulk-summary-extra '+(b.minutes>0?"positive":"negative")+'">'+(b.minutes>0?"+":"")+b.minutes+'분</small>'+
+  '</span><span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
+  '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
+  '<div class="bulk-panel"><input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
+  '<label>상벌 이름<input name="bonus-title" maxlength="80" value="'+safe(b.title)+'"></label>'+
+  '<div class="bulk-inline-fields"><label>구분<select name="bonus-type">'+
+  '<option value="add" '+(b.minutes>0?"selected":"")+'>상점 (+)</option>'+
+  '<option value="subtract" '+(b.minutes<0?"selected":"")+'>벌점 (−)</option></select></label>'+
+  '<label>시간 (분)<input name="bonus-minutes" type="number" min="1" max="300" value="'+Math.abs(b.minutes)+'"></label></div>'+
+  '<div class="bulk-row-options"><label class="bulk-active"><input type="checkbox" name="bonus-active" '+(b.active!==false?"checked":"")+'> 사용하기</label>'+
+  (!item?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></details>';
 }
 function bulkEditor(){
  requireParent();
- const d=read();
- const habits=d.habits.filter(h=>!h.moved_to_parent_bonus).sort((a,b)=>a.sort_order-b.sort_order);
- open('<form id="bulkForm" class="form bulk-form"><div class="modal-head">'+
-   '<h2>전체 항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
-   '<section class="bulk-section"><div class="bulk-section-head"><h3>할 일</h3>'+
-   el("+ 할 일","tiny","bulk-add-task")+'</div><div id="bulkTasks" class="bulk-list">'+
-   habits.map(bulkTaskRow).join("")+'</div></section>'+
-   '<section class="bulk-section"><div class="bulk-section-head"><h3>추가 상벌 보너스</h3>'+
-   el("+ 상벌","tiny","bulk-add-bonus")+'</div><div id="bulkBonuses" class="bulk-list">'+
-   d.bonusItems.map(bulkBonusRow).join("")+'</div></section>'+
+ const d=read(),habits=d.habits.filter(h=>!h.moved_to_parent_bonus).sort((a,b)=>a.sort_order-b.sort_order);
+ open('<form id="bulkForm" class="form bulk-form" data-dirty="0">'+
+   '<div class="bulk-editor-head"><h2>항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
+   '<div class="bulk-tabs" role="tablist" aria-label="편집할 항목">'+
+   '<button type="button" role="tab" aria-selected="true" class="bulk-tab active" data-action="bulk-tab" data-panel="tasks">할 일 <small>'+habits.length+'</small></button>'+
+   '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button></div>'+
+   '<section class="bulk-section" id="bulkPanelTasks" data-bulk-panel="tasks" role="tabpanel">'+
+   '<div class="bulk-section-head"><span>수정할 항목을 선택하세요</span>'+el("+ 할 일","tiny","bulk-add-task")+'</div>'+
+   '<div id="bulkTasks" class="bulk-list">'+habits.map(bulkTaskRow).join("")+'</div></section>'+
+   '<section class="bulk-section" id="bulkPanelBonuses" data-bulk-panel="bonuses" role="tabpanel" hidden>'+
+   '<div class="bulk-section-head"><span>수정할 상벌을 선택하세요</span>'+el("+ 상벌","tiny","bulk-add-bonus")+'</div>'+
+   '<div id="bulkBonuses" class="bulk-list">'+d.bonusItems.map(bulkBonusRow).join("")+'</div></section>'+
    '<div class="bulk-footer">'+el("취소","ghost","close")+
-   '<button type="submit" class="primary">전체 저장</button></div></form>');
+   '<button type="submit" class="primary">변경사항 저장</button></div></form>');
+}
+function bulkSetTab(name){
+ const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses"].includes(name))return;
+ form.querySelectorAll("[data-bulk-panel]").forEach(panel=>{
+  panel.hidden=panel.dataset.bulkPanel!==name;
+ });
+ form.querySelectorAll(".bulk-tab").forEach(tab=>{
+  const active=tab.dataset.panel===name;
+  tab.classList.toggle("active",active);
+  tab.setAttribute("aria-selected",String(active));
+ });
+}
+function bulkDirty(form){
+ if(form)form.dataset.dirty="1";
+}
+function bulkSyncRows(form){
+ if(!form)return;
+ form.querySelectorAll(".bulk-task-row").forEach(row=>{
+  const textarea=row.querySelector('[name="task-items"]');
+  if(!textarea)return;
+  textarea.value=Array.from(row.querySelectorAll('.bulk-subitems [name="sub-title"]'))
+   .map(input=>String(input.value||"").trim()).filter(Boolean).join("\n");
+ });
+}
+function bulkUpdatePreview(row){
+ if(!row)return;
+ const find=name=>row.querySelector('[name="'+name+'"]');
+ const task=row.classList.contains("bulk-task-row"),
+   title=find(task?"task-title":"bonus-title")?.value?.trim()|| (task?"새 할 일":"새 상벌"),
+   amount=Number(find(task?"task-minutes":"bonus-minutes")?.value||0),
+   sign=task||find("bonus-type")?.value==="add"?"+":"−",
+   count=task?row.querySelectorAll('.bulk-subitems [name="sub-title"]').length:0;
+ const label=row.querySelector(".bulk-summary-title"),
+  extra=row.querySelector(".bulk-summary-extra"),
+  inactive=row.querySelector(".bulk-summary-status");
+ if(label)label.textContent=title;
+ if(extra){
+  extra.textContent=sign+amount+"분"+(task?" · "+(count?count+"개 하위 항목":"단일 체크"):"");
+  extra.classList.toggle("positive",sign==="+");
+  extra.classList.toggle("negative",sign==="−");
+ }
+ const enabled=find(task?"task-active":"bonus-active")?.checked;
+ if(inactive)inactive.textContent=enabled?"":"사용 안 함";
 }
 function saveBulkEditor(form){
  requireParent();
+ bulkSyncRows(form);
  const d=read();
  const taskRows=Array.from(form.querySelectorAll(".bulk-task-row"));
  const bonusRows=Array.from(form.querySelectorAll(".bulk-bonus-row"));
@@ -979,14 +1045,33 @@ document.addEventListener("click",e=>{
   else if(act==="review")review(hid,t.dataset.status);
   else if(act==="cycle")cycleStudy();
   else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
+  else if(act==="bulk-tab"&&role()==="parent")bulkSetTab(t.dataset.panel);
   else if(act==="bulk-add-task"&&role()==="parent"){
-   document.getElementById("bulkTasks")?.insertAdjacentHTML("beforeend",bulkTaskRow(null));
+   const list=document.getElementById("bulkTasks");
+   list?.insertAdjacentHTML("beforeend",bulkTaskRow(null));
+   const row=list?.lastElementChild;if(row){row.open=true;row.querySelector('[name="task-title"]')?.focus();}
+   bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="bulk-add-bonus"&&role()==="parent"){
-   document.getElementById("bulkBonuses")?.insertAdjacentHTML("beforeend",bulkBonusRow(null));
+   const list=document.getElementById("bulkBonuses");
+   list?.insertAdjacentHTML("beforeend",bulkBonusRow(null));
+   const row=list?.lastElementChild;if(row){row.open=true;row.querySelector('[name="bonus-title"]')?.focus();}
+   bulkDirty(document.getElementById("bulkForm"));
   }
-  else if(act==="bulk-remove"&&role()==="parent"&&t.closest('.bulk-row')?.dataset.created==="1"){
+  else if(act==="bulk-add-sub"&&role()==="parent"){
+   const row=t.closest(".bulk-task-row"),list=row?.querySelector(".bulk-subitems");
+   list?.insertAdjacentHTML("beforeend",bulkSubRow(""));
+   list?.lastElementChild?.querySelector("input")?.focus();
+   bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
+  }
+  else if(act==="bulk-remove-sub"&&role()==="parent"){
+   const row=t.closest(".bulk-task-row");
+   t.closest(".bulk-subitem")?.remove();
+   bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
+  }
+  else if(act==="bulk-remove"&&role()==="parent"&&t.closest(".bulk-row")?.dataset.created==="1"){
    t.closest(".bulk-row").remove();
+   bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="history")history();
   else if(act==="bonuses")bonusesPanel();
@@ -1019,7 +1104,7 @@ document.addEventListener("submit",e=>{
    localStorage.setItem(SETUP,"1");localStorage.setItem(MODE,"parent");render();return;
   }
   if(f.id==="bulkForm"){
-   saveBulkEditor(f);close();
+   saveBulkEditor(f);f.dataset.dirty="0";close();
   }
   if(f.id==="bonusApplyForm"){
    const item=read().bonusItems.find(x=>x.id===v.id&&x.active!==false);
@@ -1031,6 +1116,19 @@ document.addEventListener("submit",e=>{
   }
   if(f.id==="useForm"){useTime(v.minutes);close();}
  }catch(err){notify(err.message||"저장 실패");}
+});
+document.addEventListener("input",e=>{
+ const row=e.target.closest?.(".bulk-row");
+ if(!row||role()!=="parent")return;
+ bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
+});
+document.addEventListener("change",e=>{
+ const row=e.target.closest?.(".bulk-row");
+ if(!row||role()!=="parent")return;
+ bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
+});
+dialog.addEventListener("cancel",e=>{
+ if(document.getElementById("bulkForm")?.dataset.dirty==="1"&&!confirm("저장하지 않은 변경사항을 버릴까요?"))e.preventDefault();
 });
 document.addEventListener("change",async e=>{
  if(e.target.id!=="restoreFile"||!e.target.files?.length)return;
