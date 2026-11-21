@@ -2,7 +2,11 @@
 "use strict";
 const STORE="kid_habits_personal_v1",SETUP="kid_habits_personal_setup_v1",MODE="kid_habits_personal_role_v1";
 const app=document.getElementById("app"),dialog=document.getElementById("modal"),dialogBody=document.getElementById("modalBody");
-let viewDay=seoulToday();
+let viewDay=seoulToday(),screen="today",statsUnit="week",statsAnchor=seoulToday(),lastPending=0;
+const DEFAULT_BONUSES=[
+ {id:"attitude",title:"바르지 않은 태도로 행동하기",minutes:-20,active:true},
+ {id:"tantrum",title:"떼쓰기",minutes:-10,active:true}
+];
 const starter=[
  {id:"morning",title:"아침 할 일",reward_minutes:5,sort_order:1,active:true,items:[{id:"bathroom",title:"소변 보기"},{id:"brush",title:"치카하기"},{id:"wash",title:"세수하기"},{id:"water",title:"물 마시기"}]},
  {id:"study",title:"공부하기",reward_minutes:10,sort_order:2,active:true,rotation:true,items:[{id:"math",title:"수학"},{id:"read",title:"책 읽기"},{id:"write",title:"받아쓰기 / 바르게 쓰기"}]},
@@ -14,11 +18,14 @@ function nextDay(day,offset=1){let d=new Date(day+"T12:00:00Z");d.setUTCDate(d.g
 function diffDays(a,b){return Math.round((Date.parse(a+"T12:00:00Z")-Date.parse(b+"T12:00:00Z"))/86400000);}
 function uid(){return typeof crypto!=="undefined"&&crypto.randomUUID?crypto.randomUUID():"p"+Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function safe(v){return String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-function fresh(){return {version:2,habits:JSON.parse(JSON.stringify(starter)),checks:[],ledger:[],subchecks:{},studyDays:{}};}
-function validate(d){return d&&[1,2].includes(d.version)&&Array.isArray(d.habits)&&Array.isArray(d.checks)&&Array.isArray(d.ledger)&&d.habits.length<500&&d.checks.length<100000&&d.ledger.length<100000&&d.habits.every(h=>h&&typeof h.id==="string"&&typeof h.title==="string"&&Number.isInteger(h.reward_minutes));}
+function fresh(){return {version:4,habits:JSON.parse(JSON.stringify(starter)),bonusItems:JSON.parse(JSON.stringify(DEFAULT_BONUSES)),checks:[],ledger:[],subchecks:{},subcheckTimes:{},studyDays:{}};}
+function validate(d){return d&&[1,2,3,4].includes(d.version)&&Array.isArray(d.habits)&&Array.isArray(d.checks)&&Array.isArray(d.ledger)&&d.habits.length<500&&d.checks.length<100000&&d.ledger.length<100000&&d.habits.every(h=>h&&typeof h.id==="string"&&typeof h.title==="string"&&Number.isInteger(h.reward_minutes));}
 function migrate(d){
  if(!d.subchecks||typeof d.subchecks!=="object")d.subchecks={};
  if(!d.studyDays||typeof d.studyDays!=="object")d.studyDays={};
+ if(!d.subcheckTimes||typeof d.subcheckTimes!=="object")d.subcheckTimes={};
+ if(!Array.isArray(d.bonusItems))d.bonusItems=JSON.parse(JSON.stringify(DEFAULT_BONUSES));
+ d.bonusItems=d.bonusItems.filter(x=>x&&typeof x.id==="string"&&typeof x.title==="string"&&Number.isInteger(x.minutes)&&x.minutes!==0&&Math.abs(x.minutes)<=300).map(x=>({...x,active:x.active!==false}));
  d.habits.forEach(h=>{
   const def=starter.find(s=>s.id===h.id);
   if(def&&d.version===1){
@@ -29,7 +36,7 @@ function migrate(d){
   else if(!Array.isArray(h.items))h.items=def?JSON.parse(JSON.stringify(def.items)):[];
   h.items=h.items.map(x=>typeof x==="string"?{id:uid(),title:x}:x).filter(x=>x&&typeof x.id==="string"&&typeof x.title==="string");
  });
- d.version=2;
+ d.version=4;
  return d;
 }
 function read(){
@@ -45,12 +52,15 @@ function read(){
 function save(d){localStorage.setItem(STORE,JSON.stringify(d));}
 function role(){return localStorage.getItem(MODE)==="child"?"child":"parent";}
 function dateLabel(day){return Number(day.slice(5,7))+"월 "+Number(day.slice(8,10))+"일";}
-function time(n){n=Math.max(0,Number(n)||0);return n<60?n+"분":Math.floor(n/60)+"시간"+(n%60?" "+n%60+"분":"");}
+function time(n){n=Number(n)||0;return (n<0?"−":"")+(Math.abs(n)<60?Math.abs(n)+"분":Math.floor(Math.abs(n)/60)+"시간"+(Math.abs(n)%60?" "+Math.abs(n)%60+"분":""));}
 function totals(d){return d.ledger.reduce((s,l)=>s+(Number(l.minutes)||0),0);}
 function check(d,hid,day){return d.checks.find(c=>c.habit_id===hid&&c.day===day);}
 function checkKey(hid,day){return day+"|"+hid;}
 function checked(d,hid,day){return d.subchecks[checkKey(hid,day)]||[];}
-function log(d,kind,minutes,description,day,checkId){d.ledger.unshift({id:uid(),kind,minutes,description,day,check_id:checkId||null,actor_id:"personal-parent",created_at:new Date().toISOString()});}
+function log(d,kind,minutes,description,day,checkId,extra){
+ d.ledger.unshift(Object.assign({id:uid(),kind,minutes,description,day,check_id:checkId||null,
+  actor_id:"personal-parent",created_at:new Date().toISOString()},extra||{}));
+}
 function requireParent(){if(role()!=="parent")throw Error("부모 화면에서만 사용할 수 있습니다.");}
 function habit(d,hid){const h=d.habits.find(x=>x.id===hid&&x.active);if(!h)throw Error("항목을 찾지 못했습니다.");return h;}
 function studyAssignment(d,day){
@@ -81,11 +91,18 @@ function toggleItem(hid,itemId){
  const d=read(),day=seoulToday(),h=habit(d,hid),items=shownItems(d,h,day),existing=check(d,hid,day);
  if(existing&&existing.status==="approved")return;
  if(!items.some(i=>i.id===itemId))return;
- const k=checkKey(hid,day),done=new Set(checked(d,hid,day));
- if(done.has(itemId))done.delete(itemId);else done.add(itemId);
+ const k=checkKey(hid,day),done=new Set(checked(d,hid,day)),stamp=new Date().toISOString();
+ if(!d.subcheckTimes[k])d.subcheckTimes[k]={};
+ if(done.has(itemId)){done.delete(itemId);delete d.subcheckTimes[k][itemId];}
+ else{done.add(itemId);d.subcheckTimes[k][itemId]=stamp;}
  d.subchecks[k]=Array.from(done);
- if(items.every(i=>done.has(i.id)))pushCheck(d,h,day);
+ if(items.every(i=>done.has(i.id))){
+  pushCheck(d,h,day);
+  const c=check(d,hid,day);if(c)c.completed_items=items.map(i=>({title:i.title,at:d.subcheckTimes[k][i.id]||stamp}));
+  signalParent(h.title);
+ }
  else if(existing&&existing.status==="pending")d.checks=d.checks.filter(x=>x!==existing);
+ if(h.rotation)Object.keys(d.studyDays).filter(date=>date>day).forEach(date=>delete d.studyDays[date]);
  save(d);render();
 }
 function submitSimple(hid){
@@ -94,16 +111,24 @@ function submitSimple(hid){
  if(h.items.length)return;
  const c=check(d,hid,day);
  if(c&&c.status==="pending")d.checks=d.checks.filter(x=>x!==c);
- else if(!c||c.status==="rejected")pushCheck(d,h,day);
+ else if(!c||c.status==="rejected"){pushCheck(d,h,day);signalParent(h.title);}
  save(d);render();
 }
 function review(hid,status){
  requireParent();const d=read(),h=habit(d,hid),day=viewDay,c=check(d,hid,day);
  if(!c||!["pending","approved"].includes(c.status))return;
- if(status==="approved"&&c.status==="pending"){c.status="approved";c.awarded_minutes=h.reward_minutes;log(d,"habit",h.reward_minutes,h.title,day,c.id);}
+ if(status==="approved"&&c.status==="pending"){
+  c.status="approved";c.awarded_minutes=h.reward_minutes;
+  if(!Array.isArray(c.completed_items)){
+   const done=new Set(checked(d,h.id,day)),k=checkKey(h.id,day);
+   c.completed_items=shownItems(d,h,day).filter(i=>done.has(i.id)).map(i=>({title:i.title,at:d.subcheckTimes[k]?.[i.id]||c.submitted_at||new Date().toISOString()}));
+  }
+  c.confirmed_items=Array.from(c.completed_items);
+  log(d,"habit",h.reward_minutes,h.title,day,c.id,{details:c.completed_items});
+}
  if(status==="rejected"){
-  if(c.status==="approved")log(d,"reversal",-c.awarded_minutes,h.title,day,c.id);
-  c.status="rejected";c.awarded_minutes=0;d.subchecks[checkKey(hid,day)]=[];
+  if(c.status==="approved")log(d,"reversal",-c.awarded_minutes,h.title,day,c.id,{reason:"완료 취소"});
+  c.status="rejected";c.awarded_minutes=0;d.subchecks[checkKey(hid,day)]=[];d.subcheckTimes[checkKey(hid,day)]={};
  }
  c.reviewed_at=new Date().toISOString();c.reviewed_by="personal-parent";save(d);render();
 }
@@ -118,11 +143,37 @@ function cycleStudy(){
  if(c)d.checks=d.checks.filter(x=>x!==c);
  save(d);render();
 }
-function adjust(kind,minutes,description){
- requireParent();const d=read(),n=Number(minutes),desc=String(description||"").trim();
- if(!["bonus","penalty","spend"].includes(kind)||!Number.isInteger(n)||n<1||n>300||!desc||desc.length>100)throw Error("시간과 내용을 확인해주세요.");
- if(kind!=="bonus"&&n>totals(d))throw Error("남은 시간보다 많습니다.");
- log(d,kind,kind==="bonus"?n:-n,desc,seoulToday(),null);save(d);render();
+function applyBonusItem(itemId,reason){
+ requireParent();
+ const d=read(),item=d.bonusItems.find(x=>x.id===itemId&&x.active);
+ if(!item)throw Error("등록된 부모 관리 보너스 항목만 사용할 수 있습니다.");
+ const desc=String(reason||"").trim();
+ if(desc.length>100)throw Error("사유는 100자 이하로 입력해주세요.");
+ log(d,item.minutes>0?"bonus":"penalty",item.minutes,item.title,seoulToday(),null,{bonus_item_id:item.id,reason:desc});
+ save(d);render();
+}
+function saveBonusItem(data){
+ requireParent();
+ const d=read(),title=String(data.title||"").trim(),n=Number(data.minutes),sign=data.type==="add"?1:-1;
+ if(!title||title.length>80||!Number.isInteger(n)||n<1||n>300)throw Error("항목 이름과 시간을 확인해주세요.");
+ if(data.id){
+  const current=d.bonusItems.find(x=>x.id===data.id);
+  if(!current)throw Error("보너스 항목을 찾을 수 없습니다.");
+  current.title=title;current.minutes=sign*n;
+  if(typeof data.active==="boolean")current.active=data.active;
+ }else d.bonusItems.push({id:uid(),title,minutes:sign*n,active:true});
+ save(d);render();
+}
+function useTime(minutes){
+ requireParent();const n=Number(minutes),d=read();
+ if(!Number.isInteger(n)||n<1||n>300)throw Error("사용 시간을 확인해주세요.");
+ if(n>Math.max(0,totals(d)))throw Error("남은 시간보다 많습니다.");
+ log(d,"spend",-n,"보너스 시간 사용",seoulToday(),null,{reason:""});
+ save(d);render();
+}
+
+function signalParent(title){
+ notify("부모 확인 대기 · "+title);
 }
 function setHabit(data){
  requireParent();const d=read(),prev=data.id?d.habits.find(x=>x.id===data.id):null;
@@ -136,22 +187,34 @@ function setHabit(data){
 function el(label,cls,action,attr=""){return '<button type="button" class="'+cls+'" data-action="'+action+'" '+attr+'>'+label+'</button>';}
 function status(c){return c?.status==="approved"?"완료":c?.status==="pending"?"확인 대기":c?.status==="rejected"?"다시 하기":"";}
 function renderTask(d,h,day,r){
- const c=check(d,h.id,day),items=shownItems(d,h,day),done=new Set(checked(d,h.id,day)),s=status(c),isParent=r==="parent";
+ const c=check(d,h.id,day),items=shownItems(d,h,day),
+  done=new Set(checked(d,h.id,day)),isParent=r==="parent",state=status(c),
+  complete=c?.status==="approved",pending=c?.status==="pending",
+  allTicked=complete||(items.length>0?items.every(item=>done.has(item.id)):pending);
+ const checkedMark='<span class="dot '+(allTicked?"on":"")+'">'+(allTicked?"✓":"")+'</span>';
+ const label='<span class="task-name">'+safe(h.title)+'</span>';
+ const titleRow=!isParent&&items.length===0?
+  '<button type="button" class="task-label task-click" data-action="complete" data-id="'+safe(h.id)+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
+  '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
- if(h.rotation&&isParent&&h.items.length>1)actions.push(el("다음","tiny","cycle",'aria-label="다음 공부 항목"'));
+ if(h.rotation&&isParent&&h.items.length>1&&!complete)actions.push(el("다음","tiny","cycle",'aria-label="다음 공부 항목"'));
  if(isParent)actions.push(el("편집","tiny muted","edit",'data-id="'+safe(h.id)+'"'));
- let itemsUI="";
- if(items.length)itemsUI='<div class="subtasks">'+items.map(item=>{
-  const isDone=c?.status==="approved"||done.has(item.id),key=safe(item.id);
-  return isParent?
-   '<div class="subitem"><span class="dot '+(isDone?"on":"")+'">'+(isDone?"✓":"")+'</span><span>'+safe(item.title)+'</span></div>':
-   '<button type="button" class="subitem selectable" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+key+'" '+(c?.status==="approved"?"disabled":"")+'><span class="dot '+(isDone?"on":"")+'">'+(isDone?"✓":"")+'</span><span>'+safe(item.title)+'</span></button>';
- }).join("")+'</div>';
- let footer="";
- if(isParent&&c?.status==="pending")footer='<div class="task-foot">'+el("승인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+el("반려","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
- else if(isParent&&c?.status==="approved")footer='<div class="task-foot">'+el("승인 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
- else if(!isParent&&!items.length)footer='<div class="task-foot">'+el(c?.status==="pending"?"요청 취소":c?.status==="approved"?"승인 완료":"완료",c?.status==="approved"?"ghost":"primary","complete",'data-id="'+safe(h.id)+'" '+(c?.status==="approved"?"disabled":""))+'</div>';
- return '<article class="task"><div class="task-top"><div class="task-name">'+safe(h.title)+'</div><div class="right">'+(s?'<span class="state '+(c?.status==="approved"?"done":"")+'">'+s+'</span>':'')+'<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+itemsUI+footer+'</article>';
+ let detail="";
+ // When the parent confirms, the child's subtask list collapses into a single checked row.
+ if(items.length&&(isParent||!complete)){
+  detail='<div class="subtasks">'+items.map(item=>{
+   const itemDone=complete||done.has(item.id),dot='<span class="dot '+(itemDone?"on":"")+'">'+(itemDone?"✓":"")+'</span>';
+   return isParent?'<div class="subitem">'+dot+'<span>'+safe(item.title)+'</span></div>':
+    '<button type="button" class="subitem selectable" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" '+(complete?"disabled":"")+'>'+dot+'<span>'+safe(item.title)+'</span></button>';
+  }).join("")+'</div>';
+ }
+ let actionsBottom="";
+ if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+el("다시 하기","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
+ else if(isParent&&complete)actionsBottom='<div class="task-foot">'+el("완료 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
+ return '<article class="task '+(complete?"task-done":"")+'"><div class="task-top">'+titleRow+
+  '<div class="right">'+(state?'<span class="state '+(complete?"done":"")+'">'+state+'</span>':'')+
+  '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
+  detail+actionsBottom+'</article>';
 }
 function header(r){return '<header class="top"><strong>보너스 시간</strong>'+(r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</header>';}
 function registration(){
@@ -163,10 +226,30 @@ function render(){
  const d=read(),r=role(),day=r==="child"?seoulToday():viewDay;
  if(r==="parent"&&day>seoulToday())viewDay=seoulToday();
  const active=d.habits.filter(h=>h.active).sort((a,b)=>a.sort_order-b.sort_order);
- if(active.some(h=>h.rotation&&h.items.length&&!d.studyDays[day])){active.filter(h=>h.rotation&&h.items.length).forEach(h=>studyAssignment(d,day));save(d);}
- const balance='<section class="balance"><span>남은 시간</span><strong>'+time(totals(d))+'</strong>'+(r==="parent"?'<div class="balance-actions">'+el("+ 추가","primary","adjust",'data-kind="bonus"')+el("− 차감","ghost","adjust",'data-kind="penalty"')+el("사용","ghost","adjust",'data-kind="spend"')+'</div>':'')+'</section>';
- const nav='<div class="daybar">'+(r==="parent"?el("‹","date-button","prev",'aria-label="전날"'):'')+'<span>'+dateLabel(day)+'</span>'+(r==="parent"?el("›","date-button","next",'aria-label="다음 날" '+(day>=seoulToday()?"disabled":"")):'')+'<div class="spacer"></div>'+el("기록","tiny","history")+(r==="parent"?el("+ 항목","tiny","new"):'')+el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</div>';
- app.innerHTML='<main class="wrap">'+header(r)+balance+nav+'<section class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</section></main>';
+ if(active.some(h=>h.rotation&&h.items.length&&!d.studyDays[day])){
+  active.filter(h=>h.rotation&&h.items.length).forEach(h=>studyAssignment(d,day));save(d);
+ }
+ const pending=d.checks.filter(c=>c.status==="pending").length;
+ const balance='<section class="balance"><span>남은 보너스 시간</span><strong>'+time(totals(d))+'</strong>'+
+  (r==="parent"?'<div class="balance-actions">'+el("부모 관리 보너스","primary","bonuses")+el("시간 사용","ghost","use")+'</div>':'')+'</section>';
+ const pendingBanner=r==="parent"&&pending?
+  '<button type="button" class="pending-banner" data-action="pending"><span class="pending-pulse"></span>확인할 항목 '+pending+'개 <span>보기 ›</span></button>':'';
+ const nav=screen==="today"?
+  '<div class="daybar">'+(r==="parent"?el("‹","date-button","prev",'aria-label="전날"'):"")+'<span>'+dateLabel(day)+'</span>'+
+  (r==="parent"?el("›","date-button","next",'aria-label="다음 날" '+(day>=seoulToday()?"disabled":"")):"")+
+  '<span class="spacer"></span>'+el("기록 · 통계","tiny","history")+
+  (r==="parent"?el("+ 항목","tiny","new"):"")+el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</div>':
+  '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
+  el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
+ const content=screen==="today"?
+  '<section class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</section>':
+  renderHistory(d,statsUnit,statsAnchor);
+ app.innerHTML='<main class="wrap">'+header(r)+balance+pendingBanner+nav+content+'</main>';
+ if(r==="parent"&&pending>lastPending&&document.visibilityState==="visible"){
+  // In-app notice on the same browser. Nothing is transmitted to a separate phone.
+  try{if("Notification" in window&&Notification.permission==="granted")new Notification("보너스 시간",{body:"확인할 항목 "+pending+"개",tag:"bonus-pending"});}catch(_){}
+ }
+ lastPending=pending;
 }
 function open(content){dialogBody.innerHTML=content;if(!dialog.open)dialog.showModal();}
 function close(){dialog.close();}
@@ -180,17 +263,152 @@ function editor(hid){
  (h?'<label class="inline"><input type="checkbox" name="active" '+(h.active?"checked":"")+'> 사용</label>':'')+
  '<div class="form-actions">'+el("취소","ghost","close")+'<button class="primary" type="submit">저장</button></div></form>');
 }
-function adjustment(kind){
- const title={bonus:"보너스 추가",penalty:"시간 차감",spend:"시간 사용"}[kind];
- open('<form id="adjustForm" class="form"><h2>'+title+'</h2><input type="hidden" name="kind" value="'+kind+'">'+
- '<label>시간 (분)<input name="minutes" type="number" min="1" max="300" value="5" required></label>'+
- '<label>내용<input name="description" maxlength="100" required></label>'+
- '<div class="form-actions">'+el("취소","ghost","close")+'<button type="submit" class="primary">저장</button></div></form>');
+function adjustment(kind){throw Error("등록된 보너스 항목만 사용할 수 있습니다.");}
+function history(){screen="history";statsAnchor=seoulToday();statsUnit="week";render();}
+function formatMoment(value){
+ if(!value)return "";
+ try{return new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit",hour12:false}).format(new Date(value));}catch(_){return "";}
 }
-function history(){
- const logs=read().ledger.slice(0,80),kinds={habit:"적립",reversal:"승인 취소",bonus:"추가",penalty:"차감",spend:"사용"};
- open('<div class="history"><div class="modal-head"><h2>기록</h2>'+el("닫기","tiny","close")+'</div>'+
- (logs.length?logs.map(l=>'<div class="log"><div><strong>'+safe(l.description)+'</strong><small>'+safe(l.day)+' · '+(kinds[l.kind]||"")+'</small></div><b class="'+(l.minutes>0?"positive":"")+'">'+(l.minutes>0?"+":"")+l.minutes+'분</b></div>').join(""):'<p class="empty">기록 없음</p>')+'</div>');
+function period(unit,anchor){
+ if(unit==="month"){
+  const start=anchor.slice(0,7)+"-01";
+  const [year,month]=anchor.slice(0,7).split("-").map(Number);
+  const last=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);
+  return {start,end:last,title:year+"년 "+month+"월"};
+ }
+ const day=new Date(anchor+"T12:00:00Z").getUTCDay(),start=nextDay(anchor,-((day+6)%7));
+ return {start,end:nextDay(start,6),title:dateLabel(start)+" ~ "+dateLabel(nextDay(start,6))};
+}
+function movePeriod(unit,anchor,step){
+ if(unit==="week")return nextDay(anchor,7*step);
+ const parts=anchor.slice(0,7).split("-").map(Number);
+ const d=new Date(Date.UTC(parts[0],parts[1]-1+step,1,12));
+ return d.toISOString().slice(0,10);
+}
+function summaryRows(d,unit,range){
+ const logs=d.ledger.filter(l=>l.day>=range.start&&l.day<=range.end);
+ const sum={plus:0,minus:0,net:0,count:0};
+ logs.forEach(l=>{const n=Number(l.minutes)||0;if(n>=0)sum.plus+=n;else sum.minus-=n;sum.net+=n;});
+ const samples=[];
+ if(unit==="week"){
+  for(let i=0;i<7;i++){const date=nextDay(range.start,i);samples.push({id:date,label:["월","화","수","목","금","토","일"][i],start:date,end:date,plus:0,minus:0});}
+ }else{
+  let cursor=range.start;
+  for(let i=0;cursor<=range.end;i++){
+   const end=nextDay(cursor,6);
+   samples.push({id:cursor,label:(i+1)+"주",start:cursor,end:end<range.end?end:range.end,plus:0,minus:0});
+   cursor=nextDay(end);
+  }
+ }
+ logs.forEach(l=>{
+  const row=samples.find(x=>l.day>=x.start&&l.day<=x.end);
+  if(row){if(l.minutes>=0)row.plus+=l.minutes;else row.minus-=l.minutes;}
+ });
+ return {logs,sum,samples};
+}
+function logDetails(d,l){
+ let html="";
+ if(l.kind==="habit"){
+  const c=d.checks.find(c=>c.id===l.check_id);
+  const raw=l.details||c?.confirmed_items||c?.completed_items||[];
+  if(Array.isArray(raw)&&raw.length)html+='<div class="log-details">'+raw.map(x=>{
+   const obj=typeof x==="string"?{title:x,at:null}:x;
+   return '<span>✓ '+safe(obj.title||"")+(obj.at?' <em>'+safe(formatMoment(obj.at))+'</em>':"")+'</span>';
+  }).join("")+'</div>';
+ }
+ if(l.kind==="penalty"&&l.reason)html+='<div class="reason">'+safe(l.reason)+'</div>';
+ return html;
+}
+function renderHistory(d,unit,anchor){
+ const range=period(unit,anchor),report=summaryRows(d,unit,range),
+  labels={habit:"완료",reversal:"완료 취소",bonus:"추가",penalty:"차감",spend:"사용"};
+ const max=Math.max(1,...report.samples.flatMap(r=>[r.plus,r.minus]));
+ const buckets='<div class="chart">'+report.samples.map(r=>
+  '<div class="chart-row"><span class="chart-label">'+r.label+'</span>'+
+  '<div class="chart-bars"><span class="chart-positive" style="width:'+(r.plus/max*100)+'%"></span>'+
+  '<span class="chart-negative" style="width:'+(r.minus/max*100)+'%"></span></div>'+
+  '<span class="chart-number">'+(r.plus?"+"+r.plus:"")+(r.minus?" −"+r.minus:"")+'</span></div>'
+ ).join("")+'</div>';
+ // Display chronological records, and pending child submissions that aren't yet reflected in the ledger.
+ const activity=report.logs.map(l=>({type:"ledger",date:l.day,at:l.created_at||l.day+"T00:00:00Z",data:l}));
+ d.checks.filter(c=>c.day>=range.start&&c.day<=range.end&&c.status==="pending").forEach(c=>
+  activity.push({type:"pending",date:c.day,at:c.submitted_at||c.day+"T00:00:00Z",data:c}));
+ // Include checked subtasks that are not yet a complete request.
+ Object.entries(d.subchecks).forEach(([key,ids])=>{
+  const split=key.indexOf("|");if(split<0||!Array.isArray(ids)||!ids.length)return;
+  const day=key.slice(0,split),hid=key.slice(split+1);
+  if(day<range.start||day>range.end||check(d,hid,day))return;
+  const h=d.habits.find(x=>x.id===hid);if(!h)return;
+  const details=(h.items||[]).filter(x=>ids.includes(x.id)).map(x=>({title:x.title,at:d.subcheckTimes?.[key]?.[x.id]||null}));
+  if(!details.length)return;
+  const at=details.map(x=>x.at).filter(Boolean).sort().pop()||day+"T00:00:00Z";
+  activity.push({type:"partial",date:day,at,data:{title:h.title,details}});
+ });
+ activity.sort((a,b)=>b.at.localeCompare(a.at));
+ const detailsUI=(entries)=>'<div class="log-details">'+entries.map(item=>{
+  const x=typeof item==="string"?{title:item}:item;
+  return '<span>✓ '+safe(x.title||"")+(x.at?' <em>'+safe(formatMoment(x.at))+'</em>':"")+'</span>';
+ }).join("")+'</div>';
+ const activities=activity.map(row=>{
+  if(row.type==="pending"){
+   const c=row.data,h=d.habits.find(x=>x.id===c.habit_id);
+   const details=Array.isArray(c.completed_items)?c.completed_items:[];
+   return '<div class="log"><div><strong>'+safe(h?.title||"할 일")+'</strong><small>'+safe(c.day)+' · '+formatMoment(c.submitted_at)+' · 확인 대기</small>'+
+    (details.length?detailsUI(details):"")+'</div><b class="waiting">대기</b></div>';
+  }
+  if(row.type==="partial"){
+   const p=row.data;
+   return '<div class="log"><div><strong>'+safe(p.title)+'</strong><small>'+safe(row.date)+' · 진행 중</small>'+
+    detailsUI(p.details)+'</div><b class="waiting">진행 중</b></div>';
+  }
+  const l=row.data,num=Number(l.minutes)||0;
+  return '<div class="log"><div><strong>'+safe(l.description||labels[l.kind])+'</strong>'+
+   '<small>'+safe(l.day)+' · '+formatMoment(l.created_at)+' · '+(labels[l.kind]||"")+'</small>'+
+   logDetails(d,l)+'</div><b class="'+(num>=0?"positive":"negative")+'">'+(num>0?"+":"")+num+'분</b></div>';
+ }).join("");
+ return '<section class="stats">'+
+  '<div class="period-nav">'+el("‹","date-button","statprev")+'<strong>'+range.title+'</strong>'+
+   el("›","date-button","statnext",' '+(range.end>=seoulToday()?"disabled":""))+'</div>'+
+  '<div class="stat-grid"><div><span>적립</span><strong class="positive">+'+time(report.sum.plus)+'</strong></div>'+
+  '<div><span>차감 · 사용</span><strong class="negative">−'+time(report.sum.minus)+'</strong></div>'+
+  '<div><span>합계</span><strong class="'+(report.sum.net>=0?"positive":"negative")+'">'+(report.sum.net>0?"+":"")+time(report.sum.net)+'</strong></div></div>'+
+  buckets+'<div class="section-head">기록 <small>'+activity.length+'건</small></div>'+
+  '<div class="activity">'+(activities||'<p class="empty">기록 없음</p>')+'</div></section>';
+}
+function bonusesPanel(){
+ const d=read();
+ const rows=d.bonusItems.map(item=>'<div class="bonus-row"><div class="bonus-info">'+
+  '<strong>'+safe(item.title)+'</strong><span class="'+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</span>'+
+  (item.active===false?'<small>중지됨</small>':"")+'</div>'+
+  el("편집","tiny","bonus-edit",'data-id="'+safe(item.id)+'"')+
+  (item.active!==false?el("적용","tiny apply","bonus-apply",'data-id="'+safe(item.id)+'"'):"")+'</div>').join("");
+ open('<div class="form"><div class="modal-head"><h2>부모 관리 보너스</h2>'+el("닫기","tiny","close")+'</div>'+
+  rows+el("+ 항목 추가","ghost","bonus-new")+'</div>');
+}
+function bonusEditor(id){
+ const item=id?read().bonusItems.find(x=>x.id===id):null;
+ open('<form id="bonusItemForm" class="form"><h2>'+(item?"보너스 항목 수정":"보너스 항목 추가")+'</h2>'+
+  '<input type="hidden" name="id" value="'+safe(item?.id||"")+'">'+
+  '<label>항목 이름<input name="title" maxlength="80" value="'+safe(item?.title||"")+'" required></label>'+
+  '<label>종류<select name="type"><option value="add" '+(item?.minutes>0?"selected":"")+'>추가 (+)</option>'+
+  '<option value="subtract" '+(item?.minutes<0?"selected":"")+'>차감 (−)</option></select></label>'+
+  '<label>시간 (분)<input name="minutes" type="number" min="1" max="300" value="'+Math.abs(item?.minutes||10)+'" required></label>'+
+  (item?'<label class="inline"><input type="checkbox" name="active" '+(item.active!==false?"checked":"")+'> 사용</label>':"")+
+  '<div class="form-actions">'+el("취소","ghost","bonuses")+'<button type="submit" class="primary">저장</button></div></form>');
+}
+function bonusApply(id){
+ const item=read().bonusItems.find(x=>x.id===id&&x.active!==false);
+ if(!item)throw Error("등록된 항목을 찾지 못했습니다.");
+ open('<form id="bonusApplyForm" class="form"><h2>'+safe(item.title)+'</h2>'+
+  '<input type="hidden" name="id" value="'+safe(item.id)+'">'+
+  '<div class="apply-value '+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</div>'+
+  '<label>사유 (선택)<input name="reason" maxlength="100" placeholder="필요할 때만 작성"></label>'+
+  '<div class="form-actions">'+el("취소","ghost","bonuses")+'<button class="primary" type="submit">적용</button></div></form>');
+}
+function useDialog(){
+ open('<form id="useForm" class="form"><h2>보너스 시간 사용</h2>'+
+ '<label>사용 시간 (분)<input type="number" name="minutes" min="1" max="300" value="10" required></label>'+
+ '<div class="form-actions">'+el("취소","ghost","close")+'<button type="submit" class="primary">사용</button></div></form>');
 }
 function toolsPanel(){
  open('<div class="form"><div class="modal-head"><h2>데이터</h2>'+el("닫기","tiny","close")+'</div><div class="form-actions">'+el("백업 저장","ghost","export")+el("백업 불러오기","primary","import")+'</div><input id="restoreFile" type="file" accept=".json,application/json" hidden></div>');
@@ -204,7 +422,11 @@ document.addEventListener("click",e=>{
  const t=e.target.closest("[data-action]");if(!t)return;
  const act=t.dataset.action,hid=t.dataset.id;
  try{
-  if(act==="role"){localStorage.setItem(MODE,role()==="parent"?"child":"parent");viewDay=seoulToday();render();}
+  if(act==="role"){
+   localStorage.setItem(MODE,role()==="parent"?"child":"parent");
+   viewDay=seoulToday();screen="today";render();
+  }
+  else if(act==="today"){screen="today";render();}
   else if(act==="prev"){viewDay=nextDay(viewDay,-1);render();}
   else if(act==="next"&&viewDay<seoulToday()){viewDay=nextDay(viewDay);render();}
   else if(act==="toggle")toggleItem(hid,t.dataset.item);
@@ -213,8 +435,20 @@ document.addEventListener("click",e=>{
   else if(act==="cycle")cycleStudy();
   else if(act==="edit")editor(hid);
   else if(act==="new")editor(null);
-  else if(act==="adjust")adjustment(t.dataset.kind);
   else if(act==="history")history();
+  else if(act==="bonuses")bonusesPanel();
+  else if(act==="bonus-new")bonusEditor(null);
+  else if(act==="bonus-edit")bonusEditor(hid);
+  else if(act==="bonus-apply")bonusApply(hid);
+  else if(act==="use")useDialog();
+  else if(act==="pending"){
+   const pending=read().checks.filter(c=>c.status==="pending").sort((a,b)=>b.day.localeCompare(a.day));
+   if(pending.length)viewDay=pending[0].day;
+   screen="today";render();
+  }
+  else if(act==="statmode"){statsUnit=t.dataset.mode;statsAnchor=seoulToday();render();}
+  else if(act==="statprev"){statsAnchor=movePeriod(statsUnit,statsAnchor,-1);render();}
+  else if(act==="statnext"&&period(statsUnit,statsAnchor).end<seoulToday()){statsAnchor=movePeriod(statsUnit,statsAnchor,1);render();}
   else if(act==="tools")toolsPanel();
   else if(act==="close")close();
   else if(act==="export")exportData();
@@ -222,15 +456,25 @@ document.addEventListener("click",e=>{
  }catch(err){notify(err.message||"처리 실패");}
 });
 document.addEventListener("submit",e=>{
- const f=e.target;if(!["pinForm","editForm","adjustForm"].includes(f.id))return;e.preventDefault();
+ const f=e.target;
+ if(!["pinForm","editForm","bonusItemForm","bonusApplyForm","useForm"].includes(f.id))return;
+ e.preventDefault();
  const v=Object.fromEntries(new FormData(f).entries());
  try{
   if(f.id==="pinForm"){
    if(v.pin!=="5555")throw Error("비밀번호를 확인해주세요.");
    localStorage.setItem(SETUP,"1");localStorage.setItem(MODE,"parent");render();return;
   }
-  if(f.id==="editForm"){setHabit({id:v.id,title:v.title,minutes:v.minutes,items:v.items,active:!!f.querySelector('[name="active"]')?.checked});close();}
-  if(f.id==="adjustForm"){adjust(v.kind,v.minutes,v.description);close();}
+  if(f.id==="editForm"){
+   setHabit({id:v.id,title:v.title,minutes:v.minutes,items:v.items,active:!!f.querySelector('[name="active"]')?.checked});
+   close();
+  }
+  if(f.id==="bonusItemForm"){
+   saveBonusItem({id:v.id,title:v.title,minutes:v.minutes,type:v.type,active:!!f.querySelector('[name="active"]')?.checked});
+   bonusesPanel();
+  }
+  if(f.id==="bonusApplyForm"){applyBonusItem(v.id,v.reason);close();}
+  if(f.id==="useForm"){useTime(v.minutes);close();}
  }catch(err){notify(err.message||"저장 실패");}
 });
 document.addEventListener("change",async e=>{

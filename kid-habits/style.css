@@ -62,3 +62,66 @@ button.tiny.muted{color:#748077;border-color:transparent}
 #toast{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);background:#213f2d;color:white;border-radius:9px;padding:11px 16px;font-size:13px;box-shadow:0 6px 24px #0002;z-index:10}
 #toast[hidden]{display:none}
 @media(max-width:480px){.wrap{width:calc(100% - 28px);padding-top:18px}.top{margin-bottom:20px}.balance{padding:21px}.balance>strong{font-size:38px}.task{padding:14px 15px}.task-top{align-items:flex-start}.right{gap:5px}.reward{font-size:12px}.daybar{gap:4px}.balance-actions{width:100%}.balance-actions button{flex:1;padding:9px 8px}.subitem{padding:10px 4px}}
+
+/* Unified task rows and checkboxes */
+.task-label{display:flex;align-items:center;gap:10px;min-width:0;flex:1;text-align:left}
+.task-click{border:0;background:transparent;padding:4px 0;cursor:pointer;color:inherit}
+.task-click:hover .task-name{color:#27704c}
+.task-label .dot{width:23px;height:23px;border-radius:7px;flex:0 0 23px}
+.task .subitem .dot{width:23px;height:23px;border-radius:7px;flex:0 0 23px}
+.task .subitem{padding-left:33px;min-height:43px}
+.task-done{background:#fafcf9;border-color:#d9e9da}
+.task-done .task-name{color:#486252}
+.task-click:disabled{opacity:1;cursor:default}
+.pending-banner{width:100%;display:flex;align-items:center;gap:10px;padding:13px 15px;margin-top:13px;border:1px solid #f2ddbc;background:#fff8e9;color:#795019;border-radius:11px;text-align:left;font-weight:710;font-size:14px}
+.pending-banner>span:last-child{margin-left:auto}
+.pending-pulse{height:9px;width:9px;background:#c78a36;border-radius:50%;flex:0 0 9px}
+.positive{color:#23704a!important}
+.negative{color:#b44743!important}
+.waiting{color:#9a7b3d!important}
+.balance{background:#265941}
+.balance .balance-actions{width:100%;margin-top:14px}
+.balance .balance-actions button{flex:1;min-height:42px}
+.daybar button.active{background:#e4f2e8;border-color:#a4c9b2;color:#205b3e}
+.stats{display:grid;gap:18px}
+.period-nav{display:flex;justify-content:center;align-items:center;gap:14px;background:white;border-radius:12px;padding:9px 12px;border:1px solid #e4e9e4}
+.period-nav strong{font-size:14px;font-weight:680;flex:1;text-align:center}
+.stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.stat-grid>div{background:white;border:1px solid #e4e9e4;border-radius:12px;padding:14px 12px;min-width:0}
+.stat-grid span{display:block;font-size:12px;color:#7b877f}
+.stat-grid strong{display:block;font-size:clamp(15px,3vw,23px);margin-top:8px;white-space:nowrap;letter-spacing:-.5px}
+.chart{display:grid;gap:10px;border:1px solid #e4e9e4;border-radius:12px;padding:16px 12px;background:white}
+.chart-row{display:flex;align-items:center;gap:10px}
+.chart-label{width:27px;flex:0 0 27px;font-size:12px;color:#718074}
+.chart-bars{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.chart-bars>span{height:9px;border-radius:3px;max-width:100%;min-width:0}
+.chart-positive{background:#3a906a}
+.chart-negative{background:#c66b66}
+.chart-number{font-size:11px;color:#839188;min-width:58px;text-align:right}
+.section-head{font-size:15px;font-weight:700;display:flex;justify-content:space-between;align-items:center;margin:3px 0 -8px}
+.section-head small{color:#849187;font-size:12px;font-weight:500}
+.activity{background:white;border:1px solid #e4e9e4;border-radius:12px;padding:3px 15px}
+.activity .log:first-child{border-top:0}
+.log>div:first-child{min-width:0}
+.log-details{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.log-details>span{font-size:11px;background:#e8f4eb;border-radius:6px;padding:4px 7px;color:#2e6d49}
+.log-details em{font-style:normal;color:#759b80}
+.reason{font-size:12px;color:#8b6260;margin-top:5px}
+.bonus-row{display:flex;align-items:center;gap:8px;border-top:1px solid #e8eee8;padding:12px 0}
+.bonus-info{display:flex;align-items:center;flex-wrap:wrap;gap:8px;flex:1;min-width:0}
+.bonus-info strong{font-size:13px;font-weight:670}
+.bonus-info span{font-size:13px;font-weight:740;white-space:nowrap}
+.bonus-info small{color:#819083}
+.bonus-row button{flex:0 0 auto}
+button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
+.form select{width:100%;border:1px solid #dce5dc;border-radius:9px;padding:11px 12px;background:white;color:#23322c;font-size:15px}
+.apply-value{font-size:29px;font-weight:750;text-align:center}
+@media(max-width:480px){
+ .task .subitem{padding-left:30px}
+ .stat-grid{gap:6px}
+ .stat-grid>div{padding:12px 8px}
+ .stat-grid strong{font-size:15px}
+ .chart{padding:14px 10px}
+ .chart-number{min-width:43px;font-size:10px}
+ .bonus-info{gap:5px}
+}
