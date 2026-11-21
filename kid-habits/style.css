@@ -639,3 +639,137 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
  .view-child .child-bonus-line{flex-direction:column;gap:5px}
  .view-child .child-bonus-inline{gap:5px 10px}
 }
+
+
+/* Behavior calendar and score charts v9 */
+.task.task-checked{
+ background:#fff5dc!important;
+ border:2px solid #d7a650!important;
+ box-shadow:inset 4px 0 0 #c58d31;
+}
+.task.task-checked .task-label .dot{background:#c68c2c;border-color:#c68c2c;color:#fff}
+.task.task-checked .reward{color:#8a691f}
+.task.task-done{background:#f1faf3!important;border-color:#b8d7bf!important;box-shadow:inset 3px 0 0 #50a477}
+.task.task-retry{background:#fff0ee!important;border-color:#e6beb9!important}
+.week-pending{background:#fff2d6;color:#a66c15}
+.behavior-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.behavior-summary>div{min-width:0;background:#fff;border:1px solid #e3eae3;border-radius:12px;padding:13px}
+.behavior-summary small{display:block;color:#718374;font-size:12px;font-weight:600;margin-bottom:7px}
+.behavior-summary strong{display:block;font-size:clamp(17px,1.6vw,26px);font-weight:780;white-space:nowrap}
+.behavior-week-compare{font-size:13px;color:#758474;text-align:right;margin:-6px 1px 2px}
+.behavior-week-compare strong{font-weight:740}
+.score-tag{display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%;padding:5px 7px;border-radius:7px;border:1px solid transparent;font-size:11px;line-height:1.3;word-break:keep-all;overflow-wrap:anywhere}
+.score-tag>span{min-width:0}
+.score-tag small{font-size:10px;font-weight:720;white-space:nowrap;opacity:.85}
+.score-tag b{font-size:11px;font-weight:780;white-space:nowrap}
+.tag-gain{background:#e8f5eb;color:#27734a;border-color:#d7ecdb}
+.tag-loss{background:#fff0ee;color:#af4e48;border-color:#f3dfdb}
+.score-day-list{display:grid;gap:6px}
+.score-day-row{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e5ebe5;border-radius:10px;padding:9px 12px;min-width:0}
+.score-day-row>strong{font-size:12px;color:#5b735e;white-space:nowrap;min-width:52px}
+.score-day-tags{display:flex;flex-wrap:wrap;gap:5px;align-items:center;flex:1;min-width:0}
+.score-day-row>b{font-size:13px;white-space:nowrap;min-width:52px;text-align:right}
+.score-empty{font-size:12px;color:#a6b1a7}
+.behavior-charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.score-chart{min-width:0;background:#fff;border:1px solid #e4ebe4;border-radius:12px;padding:13px 13px 8px}
+.score-chart h3{margin:0;font-size:14px;font-weight:710;color:#46634d}
+.score-svg{width:100%;height:auto;display:block;overflow:visible}
+.chart-key{display:flex;align-items:center;gap:14px;color:#748576;font-size:11px;justify-content:flex-end}
+.chart-key span{display:inline-flex;align-items:center;gap:4px}
+.chart-key span:before{content:"";width:8px;height:8px;border-radius:2px;background:#378b5c;display:inline-block}
+.chart-key .key-loss:before{background:#c66865}
+.score-weekly-trend{background:#fff;border:1px solid #e5ebe4;border-radius:12px;padding:12px 15px}
+.score-weekly-trend h3{font-size:14px;margin:0 0 10px;color:#46634d}
+.score-weekly-trend .trend-entry{grid-template-columns:minmax(0,1fr) 74px 130px}
+.score-weekly-trend .trend-change{white-space:nowrap}
+.score-month-calendar{
+ display:grid;
+ grid-template-columns:repeat(7,minmax(0,1fr));
+ gap:4px;
+ min-width:0;
+}
+.score-calendar-weekday{text-align:center;background:#eaf1e9;border-radius:7px;padding:8px 1px;color:#5a705c;font-size:12px;font-weight:720}
+.score-calendar-day,.score-calendar-empty{min-width:0}
+.score-calendar-day{
+ display:flex;flex-direction:column;gap:5px;align-items:stretch;
+ min-height:106px;background:#fff;border:1px solid #e5ebe4;border-radius:8px;
+ padding:8px 6px;
+}
+.score-calendar-day>strong{font-size:13px;font-weight:740;color:#596c5e;line-height:1}
+.score-calendar-day.is-today{border-color:#4a9571;box-shadow:0 0 0 1px #6bab86;background:#fafefb}
+.score-calendar-tags{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0}
+.score-calendar-tags .score-tag{flex-wrap:wrap;gap:1px 4px;padding:3px 5px;font-size:10px;line-height:1.25}
+.score-calendar-tags .score-tag b{font-size:10px}
+.score-calendar-tags .score-tag small{font-size:9px}
+.score-day-net{display:block;text-align:right;margin-top:auto;font-weight:750;font-size:11px}
+.score-calendar-empty{background:transparent}
+.view-child .child-weekly .group-head{margin:4px 0 -6px}
+.view-child .child-monthly{gap:12px}
+.view-child .child-weekly{gap:13px}
+@container work-area (max-width: 940px){
+ .behavior-charts{grid-template-columns:minmax(0,1fr)}
+ .score-calendar-day{padding:6px 4px;min-height:91px}
+ .score-calendar-tags .score-tag{font-size:9px}
+ .score-calendar-tags .score-tag b{font-size:9px}
+ .score-day-net{font-size:10px}
+}
+@media(max-width:660px){
+ .behavior-charts{grid-template-columns:minmax(0,1fr)}
+ .score-month-calendar{gap:2px}
+ .score-calendar-day{padding:5px 3px;min-height:84px;border-radius:5px}
+ .score-calendar-day>strong{font-size:11px}
+ .score-calendar-tags .score-tag{padding:3px 2px;line-height:1.2;font-size:9px}
+ .score-calendar-tags .score-tag b{font-size:9px}
+ .behavior-summary{gap:5px}
+ .behavior-summary>div{padding:10px 7px}
+ .behavior-summary strong{font-size:15px}
+ .score-day-row{flex-wrap:wrap;gap:6px;padding:8px}
+ .score-day-tags{flex-basis:calc(100% - 80px)}
+ .score-weekly-trend .trend-entry{grid-template-columns:minmax(0,1fr) 60px 98px}
+ .score-weekly-trend .trend-change{font-size:11px}
+}
+
+
+/* Parent confirmation and grouped editing v10 */
+.header-actions{display:flex;align-items:center;gap:8px;min-width:0}
+.wrap.view-parent .header-actions .mode{min-height:38px;padding:7px 11px;white-space:nowrap}
+.view-parent .task.task-checked{
+ background:#fffbf2!important;border:1px solid #e7d7b7!important;
+ box-shadow:inset 3px 0 0 #d7b976;
+}
+.view-parent .task.task-checked .task-label .dot{
+ background:#d1a555;border-color:#d1a555;color:#fff
+}
+.view-parent .task.task-checked .task-foot{margin-top:12px}
+.view-parent .task.task-checked .task-foot .primary{min-height:42px;width:100%}
+.view-parent .task.task-done{background:#f7fbf8!important;border:1px solid #d5e8d8!important;box-shadow:none}
+#modal:has(.bulk-form){width:min(95vw,850px);max-height:90dvh}
+#modal:has(.bulk-form) #modalBody{max-height:calc(90dvh - 12px);overflow-y:auto;padding:18px}
+.bulk-form{display:grid;gap:20px}
+.bulk-form .modal-head{margin:0 0 2px}
+.bulk-section{display:grid;gap:12px;min-width:0}
+.bulk-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.bulk-section-head h3{margin:0;font-size:17px;font-weight:760}
+.bulk-section-head button{min-height:37px}
+.bulk-list{display:grid;gap:10px}
+.bulk-row{min-width:0;padding:14px;border:1px solid #e1eae2;border-radius:12px;background:#fdfefd;display:grid;gap:10px}
+.bulk-row-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.bulk-row-index{min-width:0;flex:1;font-size:14px;font-weight:730;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.bulk-form label.bulk-active{display:flex;flex:0 0 auto;flex-direction:row;align-items:center;gap:7px;color:#567160;font-size:12px}
+.bulk-form .bulk-active input{accent-color:#2f7553;width:18px;height:18px}
+.bulk-form label{font-size:12px;min-width:0}
+.bulk-form input:not([type="checkbox"]),.bulk-form select,.bulk-form textarea{width:100%;border:1px solid #dbe6dd;border-radius:8px;padding:9px;font-size:14px}
+.bulk-form .bulk-inline-fields{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(112px,.7fr);gap:10px}
+.bulk-form textarea{resize:vertical;min-height:66px;max-height:190px}
+.bulk-form label small{color:#819386;font-size:11px;font-weight:500}
+.bulk-form .bulk-footer{display:flex;gap:8px;position:sticky;bottom:-18px;background:#fff;padding:14px 0 4px;border-top:1px solid #e6ece6;z-index:2}
+.bulk-form .bulk-footer button{flex:1;min-height:43px}
+@media(max-width:500px){
+ .wrap.view-parent .top{gap:6px}
+ .wrap.view-parent .header-actions{gap:5px}
+ .wrap.view-parent .header-actions .mode{padding:7px 9px;font-size:12px}
+ .bulk-row{padding:11px;gap:9px}
+ .bulk-form .bulk-inline-fields{grid-template-columns:minmax(0,1.45fr) minmax(100px,.8fr);gap:8px}
+ #modal:has(.bulk-form){width:calc(100vw - 18px)}
+ #modal:has(.bulk-form) #modalBody{padding:13px}
+}

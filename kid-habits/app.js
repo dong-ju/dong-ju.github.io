@@ -237,7 +237,7 @@ function useTime(minutes){
 }
 
 function signalParent(title){
- notify("부모 확인 대기 · "+title);
+ notify("부모 체크됨 · "+title);
 }
 function setHabit(data){
  requireParent();const d=read(),prev=data.id?d.habits.find(x=>x.id===data.id):null;
@@ -249,7 +249,7 @@ function setHabit(data){
  save(d);render();
 }
 function el(label,cls,action,attr=""){return '<button type="button" class="'+cls+'" data-action="'+action+'" '+attr+'>'+label+'</button>';}
-function status(c){return c?.status==="approved"?"완료":c?.status==="pending"?"확인 대기":c?.status==="rejected"?"다시 하기":"";}
+function status(c){return c?.status==="approved"?"완료":c?.status==="rejected"?"다시 하기":"";}
 function renderTask(d,h,day,r){
  const c=check(d,h.id,day),items=shownItems(d,h,day),
   done=new Set(checked(d,h.id,day)),isParent=r==="parent",state=status(c),
@@ -262,7 +262,7 @@ function renderTask(d,h,day,r){
   '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
  if(h.rotation&&isParent&&h.items.length>1&&!complete)actions.push(el("다음","tiny","cycle",'aria-label="다음 공부 항목"'));
- if(isParent)actions.push(el("편집","tiny muted","edit",'data-id="'+safe(h.id)+'"'));
+ // Editing is available in one separate parent settings window.
  let detail="";
  // When the parent confirms, the child's subtask list collapses into a single checked row.
  if(items.length&&(isParent||!complete)){
@@ -273,9 +273,9 @@ function renderTask(d,h,day,r){
   }).join("")+'</div>';
  }
  let actionsBottom="";
- if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+el("다시 하기","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
+ if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+'</div>';
  else if(isParent&&complete&&sameActionDay(c?.reviewed_at))actionsBottom='<div class="task-foot">'+el("완료 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
- return '<article class="task '+(complete?"task-done":"")+'"><div class="task-top">'+titleRow+
+ return '<article class="task '+(complete?"task-done":pending?"task-checked":c?.status==="rejected"?"task-retry":"")+'"><div class="task-top">'+titleRow+
   '<div class="right">'+(state?'<span class="state '+(complete?"done":"")+'">'+state+'</span>':'')+
   '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
   detail+actionsBottom+'</article>';
@@ -327,10 +327,142 @@ function periodCompletion(d,active,start,end){
   percent:planned?Math.round(confirmed/planned*100):null,
   checkedPercent:steps?Math.round(checkedSteps/steps*100):null};
 }
+
+/* Behavioral score: awarded task/bonus minutes minus penalties, NEVER time spent. */
+function scoreEntries(d,start,end){
+ return d.ledger.filter(l=>l.kind!=="spend" && Number.isFinite(Number(l.minutes)) &&
+  Number(l.minutes)!==0 && l.day>=start && l.day<=end);
+}
+function scoreTotals(d,start,end){
+ const rows=scoreEntries(d,start,end);
+ return rows.reduce((a,l)=>{
+  const n=Number(l.minutes);
+  if(n>0)a.earned+=n;else a.penalty+=-n;
+  a.net+=n;a.count++;
+  return a;
+ },{earned:0,penalty:0,net:0,count:0});
+}
+function rewardDay(d,day){
+ const entries=scoreEntries(d,day,day),groups=new Map(),sums=scoreTotals(d,day,day);
+ for(const l of entries){
+  const n=Number(l.minutes),name=String(l.description||"보너스"),
+   key=(n>=0?"+":"-")+"|"+name;
+  const g=groups.get(key)||{title:name,count:0,minutes:0,reasons:new Set()};
+  g.count++;g.minutes+=n;
+  if(l.reason)g.reasons.add(String(l.reason));
+  groups.set(key,g);
+ }
+ return {...sums,day,groups:Array.from(groups.values())};
+}
+function signedMinutes(n){return (n>0?"+":"")+n+"분";}
+function scoreTag(group){
+ const positive=group.minutes>=0,cl=positive?"gain":"loss";
+ const reasons=Array.from(group.reasons||[]);
+ const tooltip=group.title+(group.count>1?" "+group.count+"회":"")+
+  " "+signedMinutes(group.minutes)+(reasons.length?" · "+reasons.join(" / "):"");
+ return '<span class="score-tag tag-'+cl+'" title="'+safe(tooltip)+'" aria-label="'+safe(tooltip)+'">'+
+  '<span>'+safe(group.title)+'</span>'+
+  (group.count>1?'<small>'+group.count+'회</small>':"")+
+  '<b>'+signedMinutes(group.minutes)+'</b></span>';
+}
+function behaviorSeries(d,start,end){
+ const today=seoulToday(),limit=end<today?end:today;
+ if(start>limit)return {days:[],opening:0,closing:0};
+ let accumulated=d.ledger.filter(l=>l.kind!=="spend"&&l.day<start)
+   .reduce((sum,l)=>sum+(Number(l.minutes)||0),0);
+ const opening=accumulated,days=[];
+ for(let day=start;day<=limit;day=nextDay(day)){
+  const b=rewardDay(d,day);accumulated+=b.net;
+  days.push({...b,accumulated});
+ }
+ return {days,opening,closing:accumulated};
+}
+function weekChange(d,start,end){
+ const current=scoreTotals(d,start,end),
+  previous=scoreTotals(d,nextDay(start,-7),nextDay(start,-1)),
+  minutes=current.net-previous.net;
+ const rate=previous.net===0?null:Math.round(minutes/Math.abs(previous.net)*100);
+ return {current,previous,minutes,rate};
+}
+function renderBehaviorSummary(d,start,end){
+ const b=weekChange(d,start,end);
+ const delta=b.minutes,changeLabel=(delta>0?"+":"")+delta+"분",
+  rateLabel=b.rate===null?"":' ('+(b.rate>0?"+":"")+b.rate+'%)';
+ return '<div class="behavior-summary">'+
+  '<div><small>상점</small><strong class="positive">+'+b.current.earned+'분</strong></div>'+
+  '<div><small>벌점</small><strong class="negative">−'+b.current.penalty+'분</strong></div>'+
+  '<div><small>순획득</small><strong class="'+(b.current.net>=0?"positive":"negative")+'">'+signedMinutes(b.current.net)+'</strong></div>'+
+  '</div><div class="behavior-week-compare">지난주 대비 <strong class="'+(delta>0?"positive":delta<0?"negative":"")+'">'+
+  changeLabel+rateLabel+'</strong></div>';
+}
+function renderDayScoreTags(d,start,end){
+ const days=behaviorSeries(d,start,end).days;
+ return '<div class="score-day-list">'+days.map(day=>{
+  const tags=day.groups.map(scoreTag).join(""),
+   net=day.net===0?"0분":signedMinutes(day.net);
+  return '<div class="score-day-row"><strong>'+dateLabel(day.day)+'</strong>'+
+   '<div class="score-day-tags">'+(tags||'<span class="score-empty">기록 없음</span>')+'</div>'+
+   '<b class="'+(day.net>0?"positive":day.net<0?"negative":"")+'">'+net+'</b></div>';
+ }).join("")+'</div>';
+}
+function svgBehaviorCharts(d,start,end){
+ const {days,opening}=behaviorSeries(d,start,end);
+ if(!days.length)return '<p class="empty">기록 없음</p>';
+ const count=days.length,width=760,left=33,right=14,top=14,bottom=30,plot=width-left-right;
+ const cx=i=>left+(i+.5)*(plot/count),step=plot/count,
+  barWidth=Math.max(3,Math.min(12,step*.27)),barsBase=88,
+  maxMagnitude=Math.max(1,...days.map(r=>Math.max(r.earned,r.penalty))),
+  amountHeight=n=>n/maxMagnitude*65;
+ const bars=days.map((day,i)=>{
+  const x=cx(i),h1=amountHeight(day.earned),h2=amountHeight(day.penalty),
+    title=safe(day.day+' 상점 +'+day.earned+'분, 벌점 −'+day.penalty+'분');
+  return '<g><title>'+title+'</title>'+
+   '<rect x="'+(x-barWidth-1)+'" y="'+(barsBase-h1)+'" width="'+barWidth+'" height="'+h1+'" rx="2" fill="#378b5c"/>'+
+   '<rect x="'+(x+1)+'" y="'+barsBase+'" width="'+barWidth+'" height="'+h2+'" rx="2" fill="#c66865"/></g>';
+ }).join("");
+ const dates=days.map((day,i)=>(count<=8||i===0||(i+1)%5===0||i===count-1)?
+  '<text x="'+cx(i)+'" y="176" text-anchor="middle" font-size="11" fill="#78897b">'+Number(day.day.slice(-2))+'</text>':"").join("");
+ const barChart='<svg class="score-svg" viewBox="0 0 '+width+' 184" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="일별 상점과 벌점 막대 그래프">'+
+  '<line x1="'+left+'" x2="'+(width-right)+'" y1="'+barsBase+'" y2="'+barsBase+'" stroke="#d3ded5"/>'+
+  bars+dates+'</svg>';
+ const values=[opening,...days.map(x=>x.accumulated)],
+   lo=Math.min(...values),hi=Math.max(...values),
+   min=lo===hi?lo-1:lo,max=lo===hi?hi+1:hi,
+   y=v=>top+(132-top)*(max-v)/(max-min);
+ const points=days.map((day,i)=>({x:cx(i),y:y(day.accumulated),day})),
+  path='<polyline points="'+points.map(p=>p.x+','+p.y).join(" ")+'" fill="none" stroke="#326d99" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+ const dots=points.map(p=>'<g><title>'+safe(p.day.day+" 누적 "+signedMinutes(p.day.accumulated))+'</title>'+
+  '<circle cx="'+p.x+'" cy="'+p.y+'" r="'+(count<=8?4:2.5)+'" fill="#326d99"/></g>').join("");
+ const guide=[min,max].map(n=>'<text x="28" y="'+(y(n)+4)+'" text-anchor="end" font-size="11" fill="#768578">'+n+'</text>').join("");
+ const lineChart='<svg class="score-svg" viewBox="0 0 '+width+' 184" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="사용 시간 제외 누적 행동점수 변화 그래프">'+
+  guide+path+dots+dates+'</svg>';
+ return '<div class="behavior-charts"><div class="score-chart"><h3>일별 상점·벌점</h3><div class="chart-key">'+
+  '<span class="key-gain">상점</span><span class="key-loss">벌점</span></div>'+barChart+'</div>'+
+  '<div class="score-chart"><h3>누적 행동점수</h3>'+lineChart+'</div></div>';
+}
+function monthlyScoreCalendar(d,range){
+ const start=new Date(range.start+"T12:00:00Z").getUTCDay(),
+  offset=(start+6)%7,daysCount=Number(range.end.slice(-2)),
+  cells=Math.ceil((offset+daysCount)/7)*7,
+  labels=["월","화","수","목","금","토","일"],
+  header=labels.map(label=>'<span class="score-calendar-weekday">'+label+'</span>').join("");
+ const month=Array.from({length:cells},(_,i)=>{
+  const n=i-offset+1;
+  if(n<1||n>daysCount)return '<div class="score-calendar-empty" aria-hidden="true"></div>';
+  const day=range.start.slice(0,8)+String(n).padStart(2,"0"),
+   info=rewardDay(d,day),tags=info.groups.map(scoreTag).join("");
+  return '<div class="score-calendar-day '+(day===seoulToday()?"is-today":"")+'">'+
+   '<strong>'+n+'</strong>'+(tags?'<div class="score-calendar-tags">'+tags+'</div>':"")+
+   (tags?'<span class="score-day-net '+(info.net>0?"positive":info.net<0?"negative":"")+'">'+signedMinutes(info.net)+'</span>':"")+
+   '</div>';
+ }).join("");
+ return '<div class="score-month-calendar" aria-label="날짜별 상벌 기록 달력">'+header+month+'</div>';
+}
+
 function renderWeeklyChecklist(d,active,anchor){
  const range=period("week",anchor),days=Array.from({length:7},(_,i)=>nextDay(range.start,i)),
   byDay=days.map(day=>dailyCompletion(d,active,day)),overall=periodCompletion(d,active,range.start,range.end),
-  sums=summaryRows(d,"week",range).sum,labels=["월","화","수","목","금","토","일"];
+  labels=["월","화","수","목","금","토","일"];
  const headers=days.map((day,i)=>'<th scope="col" class="'+(day===seoulToday()?"is-today":"")+'">'+
   labels[i]+'<small>'+Number(day.slice(8,10))+'</small></th>').join("");
  const displayed=active.concat(d.habits.filter(h=>h.moved_to_parent_bonus&&h.was_active_before_move&&
@@ -339,9 +471,9 @@ function renderWeeklyChecklist(d,active,anchor){
  const rows=displayed.map(h=>{
   const cells=byDay.map(m=>{
    const state=m.byId[h.id]||{status:"out"},key=state.status;
-   const mark=key==="approved"?"✓":key==="pending"?"대기":key==="partial"?
+   const mark=key==="approved"?"✓":key==="pending"?"✓":key==="partial"?
     state.steps+"/"+state.total:key==="rejected"?"다시":"·";
-   const accessible=key==="approved"?"완료 기록":key==="pending"?"확인 대기":
+   const accessible=key==="approved"?"완료 기록":key==="pending"?"체크됨":
     key==="partial"?state.steps+"개 체크 / "+state.total+"개":key==="rejected"?"다시 하기":
     key==="out"?"기록 대상 아님":"기록 없음";
    return '<td><span class="week-cell week-'+key+'" title="'+safe(m.day+" "+h.title+" "+accessible)+'" aria-label="'+safe(m.day+" "+h.title+" "+accessible)+'">'+mark+'</span></td>';
@@ -350,23 +482,21 @@ function renderWeeklyChecklist(d,active,anchor){
  }).join("");
  const checked=byDay.map(m=>'<td><span class="week-day-rate">'+
   (m.totalTasks?(m.approvedTasks+m.waitingTasks)+"건":"—")+'</span></td>').join("");
- const summary='<div class="completion-summary"><div><small>할 일 체크</small><strong>'+
-  (overall.confirmed+overall.waiting)+'건</strong></div>'+
-  '<div><small>보너스 적립</small><strong class="positive">+'+time(sums.plus)+'</strong></div>'+
-  '<div><small>차감 · 사용</small><strong class="negative">−'+time(sums.minus)+'</strong></div></div>';
+ const summary=renderBehaviorSummary(d,range.start,range.end);
  return '<section class="child-weekly"><div class="period-nav">'+
   el("‹","date-button","statprev")+'<strong>'+dateLabel(range.start)+' ~ '+dateLabel(range.end)+'</strong>'+
   el("›","date-button","statnext",range.end>=seoulToday()?"disabled":"")+'</div>'+summary+
   '<div class="week-grid-scroll"><table class="week-matrix"><thead><tr><th scope="col">할 일</th>'+headers+
   '</tr></thead><tbody>'+rows+'</tbody><tfoot><tr><th scope="row">체크 건수</th>'+checked+'</tr></tfoot></table></div>'+
   '<div class="week-legend"><span><b class="week-cell week-approved">✓</b> 완료</span>'+
-  '<span><b class="week-cell week-pending">대기</b> 확인 대기</span>'+
+  '<span><b class="week-cell week-pending">✓</b> 체크됨</span>'+
   '<span><b class="week-cell week-partial">1/4</b> 일부 체크</span></div>'+
-  '<div class="group-head"><h2>이번 주 기록</h2></div>'+renderWeekEvents(d,range.start,range.end)+'</section>';
+  '<div class="group-head"><h2>일별 상벌</h2></div>'+renderDayScoreTags(d,range.start,range.end)+
+  '<div class="group-head"><h2>일별 변화</h2></div>'+svgBehaviorCharts(d,range.start,range.end)+'</section>';
 }
 function renderWeekEvents(d,start,end){
  const events=[];
- d.ledger.filter(l=>l.day>=start&&l.day<=end).forEach(l=>events.push({type:"ledger",day:l.day,
+ d.ledger.filter(l=>l.kind!=="spend"&&l.day>=start&&l.day<=end).forEach(l=>events.push({type:"ledger",day:l.day,
   at:l.created_at||l.day+"T00:00:00Z",item:l}));
  d.checks.filter(c=>c.day>=start&&c.day<=end&&c.status==="pending").forEach(c=>events.push({type:"pending",day:c.day,
   at:c.submitted_at||c.day+"T00:00:00Z",item:c}));
@@ -389,7 +519,7 @@ function renderWeekEvents(d,start,end){
   }else if(e.type==="pending"){
    const c=e.item,h=d.habits.find(x=>x.id===c.habit_id);
    title=safe(h?.title||"할 일");note=safe(c.day)+" · "+safe(formatMoment(c.submitted_at));
-   amount='<span class="waiting">확인 대기</span>';
+   amount='<span class="waiting">✓</span>';
    if(Array.isArray(c.completed_items)&&c.completed_items.length){
     detail='<div class="log-details">'+c.completed_items.map(x=>
      '<span>✓ '+safe(typeof x==="string"?x:x.title)+'</span>').join("")+'</div>';
@@ -431,30 +561,27 @@ function weeklyTrendSvg(weeks){
   guides+poly+dots+labels+'</svg>';
 }
 function renderMonthlyCompletion(d,active,anchor){
- const {range,weeks}=monthlyWeeks(d,active,anchor),
-  overall=periodCompletion(d,active,range.start,range.end),
-  ledger=summaryRows(d,"month",range).sum;
+ const range=period("month",anchor),score=scoreTotals(d,range.start,range.end),
+  {weeks}=monthlyWeeks(d,active,anchor);
  let previous=null;
- const lines=weeks.map((week,i)=>{
-  const count=week.metrics.confirmed+week.metrics.waiting,
-   difference=previous===null?null:count-previous,
-   delta=difference===null?"—":(difference>0?"+":"")+difference+"건",
-   deltaClass=difference>0?"positive":difference<0?"negative":"";
-  previous=count;
+ const rows=weeks.map((week,i)=>{
+  const tally=scoreTotals(d,week.start,week.end),delta=previous===null?null:tally.net-previous,
+   rate=previous===null||previous===0?null:Math.round(delta/Math.abs(previous)*100),
+   change=delta===null?"—":(delta>0?"+":"")+delta+"분"+(rate===null?"":" ("+(rate>0?"+":"")+rate+"%)");
+  previous=tally.net;
   return '<div class="trend-entry"><span class="trend-label">'+(i+1)+'주 <small>'+week.label+'</small></span>'+
-   '<span class="trend-rate">'+count+'건</span>'+
-   '<span class="trend-change '+deltaClass+'">'+delta+'</span></div>';
+   '<span class="trend-rate '+(tally.net>0?"positive":tally.net<0?"negative":"")+'">'+signedMinutes(tally.net)+'</span>'+
+   '<span class="trend-change '+(delta>0?"positive":delta<0?"negative":"")+'">'+change+'</span></div>';
  }).join("");
  return '<section class="child-monthly"><div class="period-nav">'+
   el("‹","date-button","statprev")+'<strong>'+range.title+'</strong>'+
   el("›","date-button","statnext",range.end>=seoulToday()?"disabled":"")+'</div>'+
-  '<div class="completion-summary month-summary"><div><small>할 일 체크</small><strong>'+
-   (overall.confirmed+overall.waiting)+'건</strong></div>'+
-  '<div><small>보너스 적립</small><strong class="positive">+'+time(ledger.plus)+'</strong></div>'+
-  '<div><small>차감 · 사용</small><strong class="negative">−'+time(ledger.minus)+'</strong></div></div>'+
-  '<div class="completion-chart"><div class="group-head"><h2>주별 할 일 기록</h2></div>'+
-  weeklyTrendSvg(weeks)+'<div class="trend-rows">'+lines+'</div></div>'+
-  '</section>';
+  '<div class="behavior-summary"><div><small>상점</small><strong class="positive">+'+score.earned+'분</strong></div>'+
+  '<div><small>벌점</small><strong class="negative">−'+score.penalty+'분</strong></div>'+
+  '<div><small>순획득</small><strong class="'+(score.net>=0?"positive":"negative")+'">'+signedMinutes(score.net)+'</strong></div></div>'+
+  monthlyScoreCalendar(d,range)+svgBehaviorCharts(d,range.start,range.end)+
+  '<section class="score-weekly-trend"><h3>주별 행동점수 변화</h3>'+
+  '<div class="trend-rows">'+rows+'</div></section></section>';
 }
 function renderChildBonusItems(d){
  const items=d.bonusItems.filter(x=>x.active!==false).sort((a,b)=>b.minutes-a.minutes);
@@ -481,8 +608,8 @@ function renderChildProgress(d,active,day){
   if(status==="pending")waiting++;
  });
  const percent=total?Math.round(done/total*100):0;
- const weekly=summaryRows(d,"week",period("week",day)).sum;
- const recent=d.ledger.slice(0,4).map(l=>{
+ const weekly=scoreTotals(d,period("week",day).start,period("week",day).end);
+ const recent=d.ledger.filter(l=>l.kind!=="spend").slice(0,4).map(l=>{
   const num=Number(l.minutes)||0,
     moment=formatMoment(l.created_at),
     detail=l.kind==="penalty"&&l.reason?'<small class="child-event-reason">'+safe(l.reason)+'</small>':"";
@@ -495,11 +622,11 @@ function renderChildProgress(d,active,day){
   '<div class="child-progress-top"><strong>'+done+' <span>/ '+total+'</span></strong><span>'+percent+'%</span></div>'+
   '<div class="child-progress-track" role="progressbar" aria-label="오늘 체크한 항목" aria-valuemin="0" aria-valuemax="'+total+'" aria-valuenow="'+done+'">'+
   '<span style="width:'+percent+'%"></span></div>'+
-  '<div class="child-progress-states"><span><b class="positive">'+confirmed+'</b> 완료</span><span><b class="waiting">'+waiting+'</b> 확인 대기</span></div>'+
+  '<div class="child-progress-states"><span><b class="positive">'+confirmed+'</b> 완료</span><span><b class="waiting">'+waiting+'</b> 체크됨</span></div>'+
   '</section>'+
   '<section class="child-week"><div class="child-section-title">이번 주</div>'+
-  '<div class="child-week-pair"><div><small>모은 시간</small><strong class="positive">+'+time(weekly.plus)+'</strong></div>'+
-  '<div><small>차감 · 사용</small><strong class="negative">−'+time(weekly.minus)+'</strong></div></div></section>'+
+  '<div class="child-week-pair"><div><small>상점</small><strong class="positive">+'+time(weekly.earned)+'</strong></div>'+
+  '<div><small>벌점</small><strong class="negative">−'+time(weekly.penalty)+'</strong></div></div></section>'+
   '<section class="child-recent"><div class="child-section-title">최근 기록</div>'+
   (recent||'<p class="child-empty">기록 없음</p>')+
   el("전체 기록 보기","child-history-button","history")+'</section>';
@@ -510,7 +637,8 @@ function header(r){
   '<rect x="2" y="2" width="36" height="36" rx="10" fill="#276b4b"/>'+
   '<path d="M10.5 20.5l6.2 6.1 13-13.3" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>'+
   '</svg></span>';
- return '<header class="top">'+mark+(r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</header>';
+ return '<header class="top">'+mark+'<div class="header-actions">'+(r==="parent"?el("전체 편집","mode","bulk-edit"):"")+
+ (r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</div></header>';
 }
 function registration(){
  app.innerHTML='<main class="wrap view-registration">'+header(null)+'<section class="pin"><form id="pinForm"><label for="pin">최초 등록 비밀번호</label><input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" autofocus placeholder="4자리">'+
@@ -527,8 +655,6 @@ function render(){
  const pending=d.checks.filter(c=>c.status==="pending").length;
  const balance='<section class="balance"><span>남은 보너스 시간</span><strong>'+time(totals(d))+'</strong>'+
   (r==="parent"?'<div class="balance-actions">'+el("시간 사용","ghost","use")+'</div>':'')+'</section>';
- const pendingBanner=r==="parent"&&pending?
-  '<button type="button" class="pending-banner" data-action="pending"><span class="pending-pulse"></span>확인할 항목 '+pending+'개 <span>보기 ›</span></button>':'';
  const nav=r==="child"?
   '<nav class="child-view-tabs" aria-label="조회 기간">'+
    el("오늘","view-tab "+(screen==="today"?"selected":""),"child-tab",'data-tab="today" aria-pressed="'+(screen==="today")+'"')+
@@ -545,26 +671,25 @@ function render(){
    el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
    el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
  const taskGroup='<section class="group"><div class="group-head"><h2>할 일</h2>'+
-  (r==="parent"?el("+ 항목","tiny","new"):"")+'</div><div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
- const bonusGroup=r==="parent"?'<section class="group"><div class="group-head"><h2>추가 상벌 보너스</h2>'+el("+ 항목","tiny","bonus-new")+'</div>'+
+  '</div><div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
+ const bonusGroup=r==="parent"?'<section class="group"><div class="group-head"><h2>추가 상벌 보너스</h2></div>'+
   '<div class="bonus-list">'+d.bonusItems.map(item=>{
    const amount=(item.minutes>0?"+":"")+item.minutes+"분";
    return '<article class="bonus-entry '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
     '<span class="bonus-amount '+(item.minutes>0?"positive":"negative")+'">'+amount+'</span>'+
-    el("편집","tiny muted","bonus-edit",'data-id="'+safe(item.id)+'"')+
     (item.active!==false?el("적용","tiny apply","bonus-apply",'data-id="'+safe(item.id)+'"'):"")+'</article>';
   }).join("")+'</div></section>':"";
  const childBonus=r==="child"?renderChildBonusItems(d):"";
  const content=screen==="today"?taskGroup+(r==="parent"?bonusGroup:childBonus):
-  screen==="week"?renderWeeklyChecklist(d,active,statsAnchor)+childBonus:
-  screen==="month"?renderMonthlyCompletion(d,active,statsAnchor)+childBonus:
+  screen==="week"?renderWeeklyChecklist(d,active,statsAnchor):
+  screen==="month"?renderMonthlyCompletion(d,active,statsAnchor):
   renderHistory(d,statsUnit,statsAnchor);
  if(r==="child"){
   app.innerHTML='<main class="wrap view-child screen-'+screen+'">'+header(r)+
    '<aside class="child-aside" aria-label="나의 진행 상황">'+balance+renderChildProgress(d,active,day)+'</aside>'+
    '<div class="child-work">'+nav+content+'</div></main>';
  }else{
-  app.innerHTML='<main class="wrap view-parent screen-'+screen+'">'+header(r)+balance+pendingBanner+nav+content+'</main>';
+  app.innerHTML='<main class="wrap view-parent screen-'+screen+'">'+header(r)+balance+nav+content+'</main>';
  }
  if(r==="parent"&&pending>lastPending&&document.visibilityState==="visible"){
   try{if("Notification" in window&&Notification.permission==="granted")new Notification("보너스 시간",{body:"확인할 항목 "+pending+"개",tag:"bonus-pending"});}catch(_){}
@@ -574,6 +699,95 @@ function render(){
 function open(content){dialogBody.innerHTML=content;if(!dialog.open)dialog.showModal();}
 function close(){dialog.close();}
 function notify(msg){const el=document.getElementById("toast");el.textContent=msg;el.hidden=false;clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>el.hidden=true,2400);}
+
+function bulkTaskRow(h){
+ const entry=h||{id:"",title:"",reward_minutes:5,items:[],active:true};
+ return '<div class="bulk-row bulk-task-row" data-created="'+(!h?"1":"0")+'">'+
+  '<input type="hidden" name="task-id" value="'+safe(entry.id)+'">'+
+  '<div class="bulk-row-head"><span class="bulk-row-index">'+(h?safe(h.title):"새 할 일")+'</span>'+
+  '<label class="bulk-active"><input type="checkbox" name="task-active" '+(entry.active?"checked":"")+'> 사용</label>'+
+  (!h?el("삭제","tiny muted","bulk-remove"):"")+'</div>'+
+  '<div class="bulk-inline-fields"><label>이름<input name="task-title" maxlength="80" required value="'+safe(entry.title)+'"></label>'+
+  '<label>보너스 (분)<input name="task-minutes" type="number" min="1" max="180" required value="'+entry.reward_minutes+'"></label></div>'+
+  '<label>하부 항목 <small>한 줄에 하나씩</small><textarea name="task-items" rows="3">'+
+  safe(entry.items.map(x=>x.title).join("\n"))+'</textarea></label></div>';
+}
+function bulkBonusRow(item){
+ const b=item||{id:"",title:"",minutes:10,active:true};
+ return '<div class="bulk-row bulk-bonus-row" data-created="'+(!item?"1":"0")+'">'+
+  '<input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
+  '<div class="bulk-row-head"><span class="bulk-row-index">'+(item?safe(item.title):"새 상벌")+'</span>'+
+  '<label class="bulk-active"><input type="checkbox" name="bonus-active" '+(b.active!==false?"checked":"")+'> 사용</label>'+
+  (!item?el("삭제","tiny muted","bulk-remove"):"")+'</div>'+
+  '<label>이름<input name="bonus-title" maxlength="80" required value="'+safe(b.title)+'"></label>'+
+  '<div class="bulk-inline-fields"><label>종류<select name="bonus-type">'+
+  '<option value="add" '+(b.minutes>0?"selected":"")+'>추가 (+)</option>'+
+  '<option value="subtract" '+(b.minutes<0?"selected":"")+'>차감 (−)</option></select></label>'+
+  '<label>시간 (분)<input name="bonus-minutes" type="number" min="1" max="300" required value="'+Math.abs(b.minutes)+'"></label></div></div>';
+}
+function bulkEditor(){
+ requireParent();
+ const d=read();
+ const habits=d.habits.filter(h=>!h.moved_to_parent_bonus).sort((a,b)=>a.sort_order-b.sort_order);
+ open('<form id="bulkForm" class="form bulk-form"><div class="modal-head">'+
+   '<h2>전체 항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
+   '<section class="bulk-section"><div class="bulk-section-head"><h3>할 일</h3>'+
+   el("+ 할 일","tiny","bulk-add-task")+'</div><div id="bulkTasks" class="bulk-list">'+
+   habits.map(bulkTaskRow).join("")+'</div></section>'+
+   '<section class="bulk-section"><div class="bulk-section-head"><h3>추가 상벌 보너스</h3>'+
+   el("+ 상벌","tiny","bulk-add-bonus")+'</div><div id="bulkBonuses" class="bulk-list">'+
+   d.bonusItems.map(bulkBonusRow).join("")+'</div></section>'+
+   '<div class="bulk-footer">'+el("취소","ghost","close")+
+   '<button type="submit" class="primary">전체 저장</button></div></form>');
+}
+function saveBulkEditor(form){
+ requireParent();
+ const d=read();
+ const taskRows=Array.from(form.querySelectorAll(".bulk-task-row"));
+ const bonusRows=Array.from(form.querySelectorAll(".bulk-bonus-row"));
+ if(taskRows.length>100||bonusRows.length>100)throw Error("항목은 각 100개까지 등록할 수 있습니다.");
+ const field=(row,name)=>row.querySelector('[name="'+name+'"]');
+ const get=(row,name)=>String(field(row,name)?.value||"").trim();
+ const bool=(row,name)=>!!field(row,name)?.checked;
+ const oldTasks=d.habits.filter(h=>!h.moved_to_parent_bonus);
+ const oldBonuses=d.bonusItems;
+ // No existing row can be silently discarded. Hide one by clearing its '사용' checkbox.
+ const incomingTasks=taskRows.map(row=>get(row,"task-id")).filter(Boolean);
+ const incomingBonuses=bonusRows.map(row=>get(row,"bonus-id")).filter(Boolean);
+ if(new Set(incomingTasks).size!==incomingTasks.length||new Set(incomingBonuses).size!==incomingBonuses.length||
+  oldTasks.some(h=>!incomingTasks.includes(h.id))||oldBonuses.some(b=>!incomingBonuses.includes(b.id)))
+  throw Error("기존 항목은 삭제할 수 없습니다. 사용을 해제해주세요.");
+ const updatedTasks=taskRows.map((row,index)=>{
+  const id=get(row,"task-id"),prev=id?oldTasks.find(h=>h.id===id):null,
+   title=get(row,"task-title"),minutes=Number(get(row,"task-minutes")),
+   subitems=String(field(row,"task-items")?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if((id&&!prev)||!title||title.length>80||!Number.isInteger(minutes)||minutes<1||minutes>180||
+     subitems.length>20||subitems.some(x=>x.length>48))throw Error("할 일 이름, 시간, 하부 항목을 확인해주세요.");
+  const already=prev?.items||[];
+  const reserved=new Set();
+  const items=subitems.map((name,i)=>{
+   const found=already[i]?.title===name&&!reserved.has(already[i].id)?already[i]:
+     already.find(x=>x.title===name&&!reserved.has(x.id));
+   if(found)reserved.add(found.id);
+   return {id:found?.id||uid(),title:name};
+  });
+  return prev?{...prev,title,reward_minutes:minutes,items,active:bool(row,"task-active"),sort_order:index+1}:
+   {id:uid(),title,reward_minutes:minutes,items,active:bool(row,"task-active"),
+    sort_order:index+1,created_on:seoulToday()};
+ });
+ const updatedBonuses=bonusRows.map(row=>{
+  const id=get(row,"bonus-id"),prev=id?oldBonuses.find(x=>x.id===id):null,
+   title=get(row,"bonus-title"),minutes=Number(get(row,"bonus-minutes")),
+   type=get(row,"bonus-type");
+  if((id&&!prev)||!title||title.length>80||!Number.isInteger(minutes)||minutes<1||minutes>300||
+    !["add","subtract"].includes(type))throw Error("상벌 이름, 종류, 시간을 확인해주세요.");
+  return {...(prev||{id:uid()}),title,minutes:minutes*(type==="add"?1:-1),active:bool(row,"bonus-active")};
+ });
+ d.habits=[...updatedTasks,...d.habits.filter(x=>x.moved_to_parent_bonus)];
+ d.bonusItems=updatedBonuses;
+ save(d);render();
+}
+
 function editor(hid){
  const d=read(),h=hid?d.habits.find(x=>x.id===hid):null;
  open('<form id="editForm" class="form"><h2>'+(h?"항목 편집":"항목 추가")+'</h2>'+
@@ -673,7 +887,7 @@ function renderHistory(d,unit,anchor){
   if(row.type==="pending"){
    const c=row.data,h=d.habits.find(x=>x.id===c.habit_id);
    const details=Array.isArray(c.completed_items)?c.completed_items:[];
-   return '<div class="log"><div><strong>'+safe(h?.title||"할 일")+'</strong><small>'+safe(c.day)+' · '+formatMoment(c.submitted_at)+' · 확인 대기</small>'+
+   return '<div class="log"><div><strong>'+safe(h?.title||"할 일")+'</strong><small>'+safe(c.day)+' · '+formatMoment(c.submitted_at)+' · 체크됨</small>'+
     (details.length?detailsUI(details):"")+'</div><b class="waiting">대기</b></div>';
   }
   if(row.type==="partial"){
@@ -764,12 +978,19 @@ document.addEventListener("click",e=>{
   else if(act==="complete")submitSimple(hid);
   else if(act==="review")review(hid,t.dataset.status);
   else if(act==="cycle")cycleStudy();
-  else if(act==="edit")editor(hid);
-  else if(act==="new")editor(null);
+  else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
+  else if(act==="bulk-add-task"&&role()==="parent"){
+   document.getElementById("bulkTasks")?.insertAdjacentHTML("beforeend",bulkTaskRow(null));
+  }
+  else if(act==="bulk-add-bonus"&&role()==="parent"){
+   document.getElementById("bulkBonuses")?.insertAdjacentHTML("beforeend",bulkBonusRow(null));
+  }
+  else if(act==="bulk-remove"&&role()==="parent"&&t.closest('.bulk-row')?.dataset.created==="1"){
+   t.closest(".bulk-row").remove();
+  }
   else if(act==="history")history();
   else if(act==="bonuses")bonusesPanel();
-  else if(act==="bonus-new")bonusEditor(null);
-  else if(act==="bonus-edit")bonusEditor(hid);
+  // Bonus definitions are also edited together in the parent editor.
   else if(act==="bonus-apply")bonusApply(hid);
   else if(act==="cancel-record")cancelLedger(hid);
   else if(act==="use")useDialog();
@@ -789,7 +1010,7 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("submit",e=>{
  const f=e.target;
- if(!["pinForm","editForm","bonusItemForm","bonusApplyForm","useForm"].includes(f.id))return;
+ if(!["pinForm","bulkForm","bonusApplyForm","useForm"].includes(f.id))return;
  e.preventDefault();
  const v=Object.fromEntries(new FormData(f).entries());
  try{
@@ -797,13 +1018,8 @@ document.addEventListener("submit",e=>{
    if(v.pin!=="5555")throw Error("비밀번호를 확인해주세요.");
    localStorage.setItem(SETUP,"1");localStorage.setItem(MODE,"parent");render();return;
   }
-  if(f.id==="editForm"){
-   setHabit({id:v.id,title:v.title,minutes:v.minutes,items:v.items,active:!!f.querySelector('[name="active"]')?.checked});
-   close();
-  }
-  if(f.id==="bonusItemForm"){
-   saveBonusItem({id:v.id,title:v.title,minutes:v.minutes,type:v.type,active:!!f.querySelector('[name="active"]')?.checked});
-   close();
+  if(f.id==="bulkForm"){
+   saveBulkEditor(f);close();
   }
   if(f.id==="bonusApplyForm"){
    const item=read().bonusItems.find(x=>x.id===v.id&&x.active!==false);
