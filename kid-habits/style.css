@@ -477,3 +477,165 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
   margin-top:clamp(18px,1.5vw,29px);
  }
 }
+
+
+/* Compact child layout v8 — prevents typography and 3-column cards from overflowing. */
+.top .brand-check{display:inline-flex;align-items:center;justify-content:center;width:39px;height:39px;flex:0 0 39px}
+.top .brand-check svg{display:block;width:39px;height:39px}
+.view-registration .top{margin-bottom:12px}
+.wrap.view-parent .top{margin-bottom:14px}
+.wrap.view-child .top{margin-bottom:13px}
+.wrap.view-child .top .brand-check,.wrap.view-child .top .brand-check svg{width:42px;height:42px}
+
+/* Width is measured in CSS pixels after screen scaling, never assumed to be 2560. */
+@media(min-width:980px){
+ .wrap.view-child{
+  width:min(calc(100% - 36px),2260px);
+  grid-template-columns:minmax(265px,.55fr) minmax(0,2.05fr);
+  column-gap:clamp(17px,2vw,40px);
+  padding:18px 0 38px;
+  grid-template-rows:auto minmax(0,1fr);
+ }
+ .view-child>.top{margin-bottom:18px}
+ .view-child>.child-aside{top:18px}
+}
+.view-child .child-work{container-type:inline-size;container-name:work-area}
+.view-child.screen-today .child-work .tasks{
+ display:grid;
+ grid-template-columns:minmax(0,1fr);
+ gap:11px;
+ align-items:start;
+}
+.view-child .child-work .child-bonus-list{
+ display:grid;
+ grid-template-columns:minmax(0,1fr);
+ gap:9px;
+}
+@container work-area (min-width: 570px){
+ .view-child.screen-today .child-work .tasks{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .view-child .child-work .child-bonus-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@container work-area (min-width: 1120px){
+ .view-child.screen-today .child-work .tasks{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .view-child .child-work .child-bonus-list{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+.view-child .child-work .task{
+ padding:13px 15px;
+ border-radius:13px;
+ min-height:0;
+}
+.view-child .child-work .task .task-top{gap:7px;align-items:flex-start;min-width:0}
+.view-child .child-work .task .task-label{gap:8px;min-height:34px;min-width:0;flex:1 1 110px}
+.view-child .child-work .task .task-name{
+ font-size:clamp(14px,.96vw,18px);
+ line-height:1.35;
+ font-weight:700;
+ word-break:keep-all;
+ overflow-wrap:anywhere;
+}
+.view-child .child-work .task .task-label .dot,
+.view-child .child-work .task .subitem .dot{width:25px;height:25px;flex-basis:25px;border-radius:7px;font-size:16px}
+.view-child .child-work .task .subtasks{margin-top:8px;padding-top:7px;gap:2px}
+.view-child .child-work .task .subitem{
+ padding:7px 4px 7px 7px;
+ min-height:43px;
+ font-size:clamp(13px,.82vw,16px);
+ line-height:1.4;
+ gap:9px;
+ overflow-wrap:anywhere;
+ word-break:keep-all;
+}
+.view-child .child-work .task .task-label.task-click{min-height:43px}
+.view-child .child-work .task .right{margin-left:auto;gap:6px;max-width:100%}
+.view-child .child-work .task .reward{font-size:14px}
+.view-child .child-work .task .state{font-size:11px;padding:4px 6px}
+.view-child .child-work .task .tiny{font-size:11px;padding:6px 8px}
+.view-child .child-work .task .task-foot{margin-top:9px}
+.view-child .child-work .task .task-foot button{font-size:12px;padding:8px 10px}
+
+/* Reduce panel scale while preserving accessible tap areas. */
+.view-child .child-aside{gap:10px}
+.view-child .balance{padding:15px 17px;border-radius:13px;gap:5px}
+.view-child .balance>span{font-size:13px}
+.view-child .balance>strong{font-size:clamp(32px,2.3vw,45px);letter-spacing:-.7px}
+.view-child .child-progress,
+.view-child .child-week,
+.view-child .child-recent{padding:13px 15px;border-radius:12px}
+.view-child .child-section-title{font-size:15px;margin-bottom:10px}
+.view-child .child-progress-top{margin-bottom:9px}
+.view-child .child-progress-top strong{font-size:31px}
+.view-child .child-progress-top strong span{font-size:17px}
+.view-child .child-progress-top>span{font-size:15px}
+.view-child .child-progress-track{height:9px}
+.view-child .child-progress-states{font-size:12px;gap:10px;margin-top:9px}
+.view-child .child-progress-states b{font-size:17px}
+.view-child .child-week-pair{gap:7px}
+.view-child .child-week-pair>div{padding:10px}
+.view-child .child-week-pair small{font-size:11px}
+.view-child .child-week-pair strong{font-size:clamp(15px,1.05vw,20px);margin-top:6px;white-space:normal;overflow-wrap:anywhere}
+.view-child .child-event{padding:9px 0;gap:8px}
+.view-child .child-event-text>span{font-size:13px}
+.view-child .child-event-text small{font-size:11px}
+.view-child .child-event>strong{font-size:14px}
+.view-child .child-history-button{font-size:12px;padding:10px 12px;margin-top:7px}
+.view-child .child-work .group-head{margin:0 0 10px}
+.view-child .child-work .group-head h2{font-size:18px}
+.view-child .child-view-tabs{padding:0 0 11px;gap:6px}
+.view-child .view-tab{font-size:14px;min-height:42px;padding:8px 14px;border-radius:9px}
+.view-child .child-view-tabs .tiny{min-height:42px;min-width:42px;font-size:16px}
+.view-child .child-day-heading{font-size:14px;margin-bottom:11px}
+.view-child .child-work .child-bonus-group{margin-top:16px}
+.view-child .child-work .child-bonus-item{padding:11px 12px;min-height:65px;gap:7px;border-radius:11px}
+.view-child .child-work .child-bonus-name{font-size:clamp(13px,.84vw,16px);line-height:1.35}
+.view-child .child-work .child-bonus-item strong{font-size:clamp(17px,1.05vw,21px)}
+
+/* The weekly grid and chart also respect the narrower right panel. */
+.view-child .child-weekly,.view-child .child-monthly{gap:12px}
+.view-child .child-weekly .completion-summary,.view-child .child-monthly .completion-summary{gap:7px}
+.view-child .completion-summary>div{padding:12px}
+.view-child .completion-summary small{font-size:11px;margin-bottom:6px}
+.view-child .completion-summary strong{font-size:clamp(16px,1.4vw,24px)}
+.view-child .week-matrix thead th{font-size:13px}
+.view-child .week-matrix tbody th{font-size:13px}
+.view-child .week-cell{font-size:12px;min-width:34px;min-height:35px}
+.view-child .period-nav strong{font-size:13px}
+.view-child .trend-rate{font-size:14px}
+.view-child .trend-label{font-size:12px}
+.view-child .chart-legend{font-size:12px}
+
+/* Independent of the child's dimensions, parent remains a portrait-first UI. */
+@media(max-width:639px){
+ .wrap.view-child{width:calc(100% - 24px)}
+ .view-child .child-work{margin-top:17px}
+ .view-child .child-work .task .task-name{font-size:16px}
+ .view-child .child-work .task .subitem{font-size:14px}
+}
+
+
+/* Compact inline child bonus notice instead of oversized award cards. */
+.view-child .child-work>.child-bonus-group{margin-top:12px}
+.view-child .child-bonus-group{padding:0;min-width:0}
+.view-child .child-bonus-line{
+ display:flex;align-items:flex-start;gap:12px;min-width:0;
+ padding:12px 14px;border:1px solid #e4e9e4;border-radius:12px;background:#fff
+}
+.view-child .child-bonus-line>strong{
+ flex:0 0 auto;font-size:13px;line-height:26px;
+ white-space:nowrap;color:#516759;font-weight:710
+}
+.view-child .child-bonus-inline{
+ display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;min-width:0
+}
+.view-child .child-bonus-chip{
+ display:inline-flex;align-items:center;gap:6px;
+ min-height:26px;padding:3px 0;
+ font-size:13px;line-height:20px;color:#55675b;
+ white-space:normal;overflow-wrap:anywhere
+}
+.view-child .child-bonus-chip>span{word-break:keep-all}
+.view-child .child-bonus-chip b{font-size:13px;white-space:nowrap}
+.view-child .child-bonus-empty{font-size:13px;color:#879489}
+@media(max-width:790px){
+ .view-child .child-bonus-line{flex-direction:column;gap:5px}
+ .view-child .child-bonus-inline{gap:5px 10px}
+}

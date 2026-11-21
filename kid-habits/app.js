@@ -328,37 +328,38 @@ function periodCompletion(d,active,start,end){
   checkedPercent:steps?Math.round(checkedSteps/steps*100):null};
 }
 function renderWeeklyChecklist(d,active,anchor){
- const range=period("week",anchor),week=Array.from({length:7},(_,i)=>nextDay(range.start,i)),
-  byDay=week.map(day=>dailyCompletion(d,active,day)),overall=periodCompletion(d,active,range.start,range.end);
- const labels=["월","화","수","목","금","토","일"];
- const headers=week.map((day,i)=>'<th scope="col" class="'+(day===seoulToday()?"is-today":"")+'">'+
+ const range=period("week",anchor),days=Array.from({length:7},(_,i)=>nextDay(range.start,i)),
+  byDay=days.map(day=>dailyCompletion(d,active,day)),overall=periodCompletion(d,active,range.start,range.end),
+  sums=summaryRows(d,"week",range).sum,labels=["월","화","수","목","금","토","일"];
+ const headers=days.map((day,i)=>'<th scope="col" class="'+(day===seoulToday()?"is-today":"")+'">'+
   labels[i]+'<small>'+Number(day.slice(8,10))+'</small></th>').join("");
  const displayed=active.concat(d.habits.filter(h=>h.moved_to_parent_bonus&&h.was_active_before_move&&
-  week.some(day=>day>=d.started_on&&day>=h.created_on&&
+  days.some(day=>day>=d.started_on&&day>=h.created_on&&
    (day<h.moved_to_parent_on||(day===h.moved_to_parent_on&&check(d,h.id,day)?.status==="approved")))));
  const rows=displayed.map(h=>{
   const cells=byDay.map(m=>{
    const state=m.byId[h.id]||{status:"out"},key=state.status;
    const mark=key==="approved"?"✓":key==="pending"?"대기":key==="partial"?
     state.steps+"/"+state.total:key==="rejected"?"다시":"·";
-   const accessible=key==="approved"?"부모 확인 완료":key==="pending"?"확인 대기":
+   const accessible=key==="approved"?"완료 기록":key==="pending"?"확인 대기":
     key==="partial"?state.steps+"개 체크 / "+state.total+"개":key==="rejected"?"다시 하기":
-    key==="out"?"기록 대상 아님":"미완료";
+    key==="out"?"기록 대상 아님":"기록 없음";
    return '<td><span class="week-cell week-'+key+'" title="'+safe(m.day+" "+h.title+" "+accessible)+'" aria-label="'+safe(m.day+" "+h.title+" "+accessible)+'">'+mark+'</span></td>';
   }).join("");
   return '<tr><th scope="row">'+safe(h.title)+'</th>'+cells+'</tr>';
  }).join("");
- const totals=byDay.map(m=>'<td><span class="week-day-rate">'+(m.completedPercent===null?"—":m.completedPercent+"%")+'</span></td>').join("");
- const summary='<div class="completion-summary"><div><small>완료한 할 일</small><strong>'+
-  overall.confirmed+' <em>/ '+overall.planned+'</em></strong></div>'+
-  '<div><small>부모 확인 완료율</small><strong class="positive">'+(overall.percent===null?"—":overall.percent+"%")+'</strong></div>'+
-  '<div><small>체크 진행률</small><strong class="neutral">'+(overall.checkedPercent===null?"—":overall.checkedPercent+"%")+'</strong></div></div>';
+ const checked=byDay.map(m=>'<td><span class="week-day-rate">'+
+  (m.totalTasks?(m.approvedTasks+m.waitingTasks)+"건":"—")+'</span></td>').join("");
+ const summary='<div class="completion-summary"><div><small>할 일 체크</small><strong>'+
+  (overall.confirmed+overall.waiting)+'건</strong></div>'+
+  '<div><small>보너스 적립</small><strong class="positive">+'+time(sums.plus)+'</strong></div>'+
+  '<div><small>차감 · 사용</small><strong class="negative">−'+time(sums.minus)+'</strong></div></div>';
  return '<section class="child-weekly"><div class="period-nav">'+
   el("‹","date-button","statprev")+'<strong>'+dateLabel(range.start)+' ~ '+dateLabel(range.end)+'</strong>'+
   el("›","date-button","statnext",range.end>=seoulToday()?"disabled":"")+'</div>'+summary+
   '<div class="week-grid-scroll"><table class="week-matrix"><thead><tr><th scope="col">할 일</th>'+headers+
-  '</tr></thead><tbody>'+rows+'</tbody><tfoot><tr><th scope="row">완료율</th>'+totals+'</tr></tfoot></table></div>'+
-  '<div class="week-legend"><span><b class="week-cell week-approved">✓</b> 확인 완료</span>'+
+  '</tr></thead><tbody>'+rows+'</tbody><tfoot><tr><th scope="row">체크 건수</th>'+checked+'</tr></tfoot></table></div>'+
+  '<div class="week-legend"><span><b class="week-cell week-approved">✓</b> 완료</span>'+
   '<span><b class="week-cell week-pending">대기</b> 확인 대기</span>'+
   '<span><b class="week-cell week-partial">1/4</b> 일부 체크</span></div>'+
   '<div class="group-head"><h2>이번 주 기록</h2></div>'+renderWeekEvents(d,range.start,range.end)+'</section>';
@@ -415,24 +416,19 @@ function monthlyWeeks(d,active,anchor){
  return {range,weeks:parts};
 }
 function weeklyTrendSvg(weeks){
- const valid=weeks.map((w,i)=>({...w,i})).filter(w=>w.metrics.percent!==null),
-  width=640,height=232,left=45,right=18,top=20,bottom=36,
-  spanX=width-left-right,spanY=height-top-bottom,
-  y=v=>top+spanY*(100-v)/100,
-  x=i=>left+spanX*(weeks.length===1?.5:i/(weeks.length-1));
- const guides=[0,50,100].map(n=>
+ const values=weeks.map(w=>w.metrics.confirmed+w.metrics.waiting),
+  max=Math.max(1,...values),width=640,height=232,left=42,right=18,top=20,bottom=36,
+  x=i=>left+(width-left-right)*(weeks.length===1?.5:i/(weeks.length-1)),
+  y=n=>top+(height-top-bottom)*(max-n)/max;
+ const guides=Array.from(new Set([0,Math.ceil(max/2),max])).map(n=>
   '<line x1="'+left+'" x2="'+(width-right)+'" y1="'+y(n)+'" y2="'+y(n)+'" stroke="#e1e9e2" stroke-width="1"/>'+
-  '<text x="'+(left-10)+'" y="'+(y(n)+4)+'" text-anchor="end" font-size="12" fill="#79877e">'+n+'</text>').join("");
- function line(key,color,dash){
-  const data=valid.map(w=>({x:x(w.i),y:y(w.metrics[key]),value:w.metrics[key]}));
-  if(!data.length)return "";
-  const poly='<polyline points="'+data.map(p=>p.x+','+p.y).join(" ")+'" fill="none" stroke="'+color+
-   '" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" '+(dash?'stroke-dasharray="7 6"':"")+'/>';
-  return poly+data.map(p=>'<circle cx="'+p.x+'" cy="'+p.y+'" r="5" fill="'+color+'" stroke="white" stroke-width="2.3"/>').join("");
- }
- const labels=weeks.map((w,i)=>'<text x="'+x(i)+'" y="'+(height-10)+'" text-anchor="middle" font-size="13" fill="#62776a">'+(i+1)+'주</text>').join("");
- return '<svg class="completion-svg" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="월간 주별 확인 완료율과 체크율의 변화" xmlns="http://www.w3.org/2000/svg">'+
-  guides+line("percent","#2e8056",false)+line("checkedPercent","#b48643",true)+labels+'</svg>';
+  '<text x="'+(left-9)+'" y="'+(y(n)+4)+'" text-anchor="end" font-size="12" fill="#79877e">'+n+'</text>').join("");
+ const points=values.map((value,i)=>({x:x(i),y:y(value)})),
+  poly='<polyline points="'+points.map(p=>p.x+','+p.y).join(" ")+'" fill="none" stroke="#2e8056" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  dots=points.map(p=>'<circle cx="'+p.x+'" cy="'+p.y+'" r="5" fill="#2e8056" stroke="white" stroke-width="2.3"/>').join(""),
+  labels=weeks.map((w,i)=>'<text x="'+x(i)+'" y="'+(height-10)+'" text-anchor="middle" font-size="13" fill="#62776a">'+(i+1)+'주</text>').join("");
+ return '<svg class="completion-svg" viewBox="0 0 '+width+' '+height+'" role="img" aria-label="주별 할 일 체크 건수 변화" xmlns="http://www.w3.org/2000/svg">'+
+  guides+poly+dots+labels+'</svg>';
 }
 function renderMonthlyCompletion(d,active,anchor){
  const {range,weeks}=monthlyWeeks(d,active,anchor),
@@ -440,41 +436,35 @@ function renderMonthlyCompletion(d,active,anchor){
   ledger=summaryRows(d,"month",range).sum;
  let previous=null;
  const lines=weeks.map((week,i)=>{
-  const m=week.metrics;
-  let delta='—',deltaClass="";
-  if(m.percent!==null&&previous!==null){
-   const diff=m.percent-previous;delta=(diff>0?"+":"")+diff+"%p";
-   deltaClass=diff>0?"positive":diff<0?"negative":"";
-  }
-  if(m.percent!==null)previous=m.percent;
+  const count=week.metrics.confirmed+week.metrics.waiting,
+   difference=previous===null?null:count-previous,
+   delta=difference===null?"—":(difference>0?"+":"")+difference+"건",
+   deltaClass=difference>0?"positive":difference<0?"negative":"";
+  previous=count;
   return '<div class="trend-entry"><span class="trend-label">'+(i+1)+'주 <small>'+week.label+'</small></span>'+
-   '<span class="trend-rate">'+(m.percent===null?"—":m.percent+"%")+'</span>'+
+   '<span class="trend-rate">'+count+'건</span>'+
    '<span class="trend-change '+deltaClass+'">'+delta+'</span></div>';
  }).join("");
  return '<section class="child-monthly"><div class="period-nav">'+
   el("‹","date-button","statprev")+'<strong>'+range.title+'</strong>'+
   el("›","date-button","statnext",range.end>=seoulToday()?"disabled":"")+'</div>'+
-  '<div class="completion-summary month-summary"><div><small>완료한 할 일</small><strong>'+overall.confirmed+
-  ' <em>/ '+overall.planned+'</em></strong></div>'+
-  '<div><small>확인 완료율</small><strong class="positive">'+(overall.percent===null?"—":overall.percent+"%")+'</strong></div>'+
-  '<div><small>체크 진행률</small><strong>'+ (overall.checkedPercent===null?"—":overall.checkedPercent+"%")+'</strong></div></div>'+
-  '<div class="completion-chart"><div class="group-head"><h2>주별 완료율 변화</h2></div>'+
-  '<div class="chart-legend"><span><i class="confirmed-line"></i>확인 완료율</span>'+
-  '<span><i class="checked-line"></i>체크 진행률</span></div>'+
-  weeklyTrendSvg(weeks)+'<div class="trend-rows">'+lines+'</div></div>'+
-  '<div class="month-bonus-summary"><div><small>보너스 적립</small><strong class="positive">+'+time(ledger.plus)+'</strong></div>'+
+  '<div class="completion-summary month-summary"><div><small>할 일 체크</small><strong>'+
+   (overall.confirmed+overall.waiting)+'건</strong></div>'+
+  '<div><small>보너스 적립</small><strong class="positive">+'+time(ledger.plus)+'</strong></div>'+
   '<div><small>차감 · 사용</small><strong class="negative">−'+time(ledger.minus)+'</strong></div></div>'+
+  '<div class="completion-chart"><div class="group-head"><h2>주별 할 일 기록</h2></div>'+
+  weeklyTrendSvg(weeks)+'<div class="trend-rows">'+lines+'</div></div>'+
   '</section>';
 }
 function renderChildBonusItems(d){
  const items=d.bonusItems.filter(x=>x.active!==false).sort((a,b)=>b.minutes-a.minutes);
- const cards=items.map(item=>
-  '<div class="child-bonus-item"><span class="child-bonus-name">'+safe(item.title)+'</span>'+
-  '<strong class="'+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</strong></div>'
+ const chips=items.map(item=>
+  '<span class="child-bonus-chip"><span>'+safe(item.title)+'</span>'+
+  '<b class="'+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</b></span>'
  ).join("");
- return '<section class="child-bonus-group" aria-label="추가 상벌 보너스">'+
-  '<div class="group-head"><h2>추가 상벌 보너스</h2></div>'+
-  '<div class="child-bonus-list">'+(cards||'<p class="child-empty">등록된 항목 없음</p>')+'</div></section>';
+ return '<section class="child-bonus-group" aria-label="상벌 보너스">'+
+  '<div class="child-bonus-line"><strong>상벌 보너스</strong>'+
+  '<div class="child-bonus-inline">'+(chips||'<span class="child-bonus-empty">등록된 항목 없음</span>')+'</div></div></section>';
 }
 function renderChildProgress(d,active,day){
  let done=0,total=0,confirmed=0,waiting=0;
@@ -514,7 +504,14 @@ function renderChildProgress(d,active,day){
   (recent||'<p class="child-empty">기록 없음</p>')+
   el("전체 기록 보기","child-history-button","history")+'</section>';
 }
-function header(r){return '<header class="top"><strong>보너스 시간</strong>'+(r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</header>';}
+function header(r){
+ const mark='<span class="brand-check" role="img" aria-label="보너스 시간">'+
+  '<svg viewBox="0 0 40 40" width="40" height="40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">'+
+  '<rect x="2" y="2" width="36" height="36" rx="10" fill="#276b4b"/>'+
+  '<path d="M10.5 20.5l6.2 6.1 13-13.3" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>'+
+  '</svg></span>';
+ return '<header class="top">'+mark+(r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</header>';
+}
 function registration(){
  app.innerHTML='<main class="wrap view-registration">'+header(null)+'<section class="pin"><form id="pinForm"><label for="pin">최초 등록 비밀번호</label><input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" autofocus placeholder="4자리">'+
  '<button type="submit" class="primary">등록</button></form></section></main>';
@@ -537,7 +534,7 @@ function render(){
    el("오늘","view-tab "+(screen==="today"?"selected":""),"child-tab",'data-tab="today" aria-pressed="'+(screen==="today")+'"')+
    el("주간","view-tab "+(screen==="week"?"selected":""),"child-tab",'data-tab="week" aria-pressed="'+(screen==="week")+'"')+
    el("월간","view-tab "+(screen==="month"?"selected":""),"child-tab",'data-tab="month" aria-pressed="'+(screen==="month")+'"')+
-   '<span class="spacer"></span>'+el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</nav>'+
+   '</nav>'+
    (screen==="today"?'<div class="child-day-heading">'+dateLabel(day)+'</div>':""):
   screen==="today"?
    '<div class="daybar">'+el("‹","date-button","prev",'aria-label="전날"')+'<span>'+dateLabel(day)+'</span>'+
@@ -784,10 +781,10 @@ document.addEventListener("click",e=>{
   else if(act==="statmode"){statsUnit=t.dataset.mode;statsAnchor=seoulToday();render();}
   else if(act==="statprev"){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,-1);render();}
   else if(act==="statnext"&&period(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor).end<seoulToday()){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,1);render();}
-  else if(act==="tools")toolsPanel();
+  else if(act==="tools"&&role()==="parent")toolsPanel();
   else if(act==="close")close();
-  else if(act==="export")exportData();
-  else if(act==="import")document.getElementById("restoreFile")?.click();
+  else if(act==="export"&&role()==="parent")exportData();
+  else if(act==="import"&&role()==="parent")document.getElementById("restoreFile")?.click();
  }catch(err){notify(err.message||"처리 실패");}
 });
 document.addEventListener("submit",e=>{
@@ -821,6 +818,7 @@ document.addEventListener("submit",e=>{
 });
 document.addEventListener("change",async e=>{
  if(e.target.id!=="restoreFile"||!e.target.files?.length)return;
+ if(role()!=="parent"){notify("부모 화면에서 관리해주세요.");return;}
  const file=e.target.files[0];e.target.value="";
  if(file.size>8e6){notify("파일 크기 초과");return;}
  try{
