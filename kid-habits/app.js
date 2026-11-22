@@ -90,16 +90,15 @@ function save(d){localStorage.setItem(STORE,JSON.stringify(d));}
 function role(){return childPreview||localStorage.getItem(MODE)==="child"?"child":"parent";}
 function previewChild(){
  if(role()!=="parent")return;
- // Preview never changes the device's permanent mode. Browser Back restores the parent view.
- window.history?.pushState?.({goodHabitChildPreview:true},"",window.location.href);
- childPreview=true;screen="today";statsAnchor=seoulToday();render();
+ // Temporary interactive child session opened by the parent; device role is unchanged.
+ childPreview=true;
+ screen="today";statsAnchor=seoulToday();viewDay=seoulToday();render();
 }
-window.addEventListener("popstate",()=>{
- if(childPreview){childPreview=false;screen="today";viewDay=seoulToday();render();}
-});
-window.addEventListener("keydown",e=>{
- if(e.key==="Escape"&&childPreview)window.history?.back?.();
-});
+function returnToParent(){
+ if(!childPreview||localStorage.getItem(MODE)==="child")return;
+ childPreview=false;
+ screen="today";viewDay=seoulToday();statsAnchor=seoulToday();render();
+}
 function dateLabel(day){return Number(day.slice(5,7))+"월 "+Number(day.slice(8,10))+"일";}
 function time(n){n=Number(n)||0;return (n<0?"−":"")+(Math.abs(n)<60?Math.abs(n)+"분":Math.floor(Math.abs(n)/60)+"시간"+(Math.abs(n)%60?" "+Math.abs(n)%60+"분":""));}
 function totals(d){return d.ledger.reduce((s,l)=>s+(Number(l.minutes)||0),0);}
@@ -164,7 +163,7 @@ function pushCheck(d,h,day){
  else{c.status="pending";c.submitted_at=new Date().toISOString();c.reviewed_at=null;c.reviewed_by=null;}
 }
 function toggleItem(hid,itemId){
- if(role()!=="child"||childPreview)return;
+ if(role()!=="child")return;
  const d=read(),day=seoulToday(),h=habit(d,hid),items=shownItems(d,h,day),existing=check(d,hid,day);
  if(existing&&existing.status==="approved")return;
  if(!items.some(i=>i.id===itemId))return;
@@ -183,7 +182,7 @@ function toggleItem(hid,itemId){
  save(d);render();
 }
 function submitSimple(hid){
- if(role()!=="child"||childPreview)return;
+ if(role()!=="child")return;
  const d=read(),day=seoulToday(),h=habit(d,hid);
  if(h.items.length)return;
  const c=check(d,hid,day);
@@ -279,7 +278,7 @@ function renderTask(d,h,day,r){
  const checkedMark='<span class="dot '+(allTicked?"on":"")+'">'+(allTicked?"✓":"")+'</span>';
  const label='<span class="task-name">'+safe(h.title)+'</span>';
  const titleRow=!isParent&&items.length===0?
-  '<button type="button" class="task-label task-click" data-action="complete" data-id="'+safe(h.id)+'" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete||childPreview?"disabled":"")+'>'+checkedMark+label+'</button>':
+  '<button type="button" class="task-label task-click" data-action="complete" data-id="'+safe(h.id)+'" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
   '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
  if(h.rotation&&isParent&&h.items.length>1&&!complete)actions.push(el("다음","tiny","cycle",'aria-label="다음 공부 항목"'));
@@ -290,7 +289,7 @@ function renderTask(d,h,day,r){
   detail='<div class="subtasks">'+items.map(item=>{
    const itemDone=complete||done.has(item.id),dot='<span class="dot '+(itemDone?"on":"")+'">'+(itemDone?"✓":"")+'</span>';
    return isParent?'<div class="subitem">'+dot+'<span>'+safe(item.title)+'</span></div>':
-    '<button type="button" class="subitem selectable" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" '+(complete||childPreview?"disabled":"")+'>'+dot+'<span>'+safe(item.title)+'</span></button>';
+    '<button type="button" class="subitem selectable" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" '+(complete?"disabled":"")+'>'+dot+'<span>'+safe(item.title)+'</span></button>';
   }).join("")+'</div>';
  }
  if(h.rotation&&h.items.length>1){
@@ -666,10 +665,10 @@ function header(r){
  const mark='<span class="brand-check" role="img" aria-label="좋은습관">'+
   '<img src="/kid-habits/good-habit-icon-512.webp?v=good-habit-v1" width="40" height="40" alt="" aria-hidden="true"></span>';
  return '<header class="top">'+mark+
-  (r==="child"&&childPreview?'<span class="preview-label" aria-label="아이 화면 미리보기">미리보기 · 뒤로 가기로 종료</span>':"")+
+  (r==="child"&&childPreview?'<div class="header-actions">'+el("부모 모드로 돌아가기","mode return-parent","return-parent",'aria-label="부모 모드로 돌아가기"')+'</div>':"")+
   (r==="parent"?'<div class="header-actions">'+
    el("전체 편집","mode","bulk-edit")+
-   el("아이 화면 미리보기","mode","role",'aria-label="아이 화면 미리보기, 뒤로 가기로 종료"')+
+   el("아이 모드로 전환","mode","role",'aria-label="아이 모드로 일시 전환"')+
    '</div>':"")+'</header>';
 }
 function registerDevice(pin,mode){
@@ -1090,6 +1089,9 @@ document.addEventListener("click",e=>{
  try{
   if(act==="role"&&role()==="parent"){
    previewChild();
+  }
+  else if(act==="return-parent"&&childPreview){
+   returnToParent();
   }
   else if(act==="today"){screen="today";render();}
   else if(act==="child-tab"){

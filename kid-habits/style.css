@@ -943,3 +943,135 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
  .setup-mode{padding:13px 12px}
  .setup-title{font-size:21px}
 }
+
+
+/* Tablet portrait and landscape refinements v15 */
+.wrap.view-child .header-actions{margin-left:auto;display:flex;min-width:0}
+.wrap.view-child .header-actions .return-parent{
+ display:inline-flex;align-items:center;justify-content:center;
+ min-height:43px;padding:9px 13px;
+ border:1px solid #cfded1;border-radius:10px;
+ background:#f5faf6;color:#316149;
+ font-size:13px;font-weight:680;
+ white-space:normal;text-align:center;line-height:1.3;
+}
+.wrap.view-child .header-actions .return-parent:focus-visible{
+ outline:2px solid #367e59;outline-offset:2px;
+}
+@media (min-width:640px) and (max-width:1199px) and (orientation:portrait){
+ .wrap.view-child{
+  display:flex;
+  flex-direction:column;
+  width:min(calc(100% - 32px),1010px);
+  min-height:100dvh;
+  max-width:none;
+  padding:16px 0 35px;
+ }
+ .view-child>.top{margin-bottom:12px}
+ .view-child>.child-aside{
+  position:static;
+  top:auto;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  grid-template-rows:auto auto;
+  gap:10px;
+ }
+ .view-child>.child-aside>*{min-width:0}
+ .view-child .child-aside>.balance,
+ .view-child .child-aside>.child-recent{grid-column:auto}
+ .view-child .child-aside>.balance{padding:14px 16px}
+ .view-child .child-progress,
+ .view-child .child-week,
+ .view-child .child-recent{padding:12px 14px}
+ .view-child .child-recent{max-height:280px;overflow-y:auto}
+ .view-child>.child-work{
+  width:100%;
+  margin-top:15px;
+  min-width:0;
+ }
+ .view-child .child-work>.child-view-tabs{padding:0 0 10px}
+ .view-child.screen-today .child-work .tasks{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+ }
+ .view-child .week-matrix{
+  width:100%;
+  min-width:0;
+ }
+ .view-child .week-matrix th,
+ .view-child .week-matrix td{
+  padding:10px 3px;
+ }
+ .view-child .week-matrix thead th:first-child,
+ .view-child .week-matrix tbody th,
+ .view-child .week-matrix tfoot th{
+  width:23%;
+  min-width:125px;
+  padding-left:9px;
+ }
+ .view-child .week-cell{min-width:29px;min-height:32px;padding:4px;font-size:11px}
+ .view-child .score-calendar-day{min-width:0}
+}
+@media (min-width:800px) and (max-width:1199px) and (orientation:landscape){
+ .wrap.view-child{
+  display:grid;
+  width:calc(100% - 28px);
+  max-width:1160px;
+  grid-template-columns:minmax(240px,.56fr) minmax(0,1.92fr);
+  grid-template-rows:auto minmax(0,1fr);
+  column-gap:16px;
+  align-items:start;
+  padding:12px 0 32px;
+ }
+ .view-child>.top{grid-column:1/-1;grid-row:1;margin-bottom:12px}
+ .view-child>.child-aside{
+  grid-column:1;grid-row:2;
+  display:flex;flex-direction:column;
+  position:sticky;top:12px;gap:9px;
+ }
+ .view-child>.child-work{
+  grid-column:2;grid-row:2;
+  display:flex;flex-direction:column;
+  min-width:0;margin-top:0;
+ }
+ .view-child .child-aside .balance,
+ .view-child .child-progress,
+ .view-child .child-week,
+ .view-child .child-recent{padding:12px}
+ .view-child .child-work .tasks{gap:10px}
+ .view-child .child-view-tabs{padding-bottom:10px}
+ .view-child .week-matrix{min-width:0}
+ .view-child .week-matrix th,
+ .view-child .week-matrix td{padding:9px 3px}
+ .view-child .week-matrix thead th:first-child,
+ .view-child .week-matrix tbody th,
+ .view-child .week-matrix tfoot th{min-width:125px;padding-left:9px}
+ .view-child .week-cell{min-width:26px;min-height:31px;font-size:11px;padding:3px}
+}
+@media (min-width:800px) and (max-height:720px) and (orientation:landscape){
+ .wrap.view-child{padding-top:9px}
+ .view-child>.top{margin-bottom:8px}
+ .view-child .child-aside{gap:7px}
+ .view-child .child-work .group-head{margin-bottom:8px}
+ .view-child .child-work .task{padding:10px 12px}
+}
+@media (max-width:639px){
+ .wrap.view-child{max-width:none;width:calc(100% - 24px)}
+ .view-child>.top{gap:8px;margin-bottom:10px}
+ .wrap.view-child .header-actions .return-parent{
+  font-size:12px;min-height:40px;padding:7px 10px;
+ }
+ .view-child .child-aside{gap:9px}
+ .view-child .child-work .tasks{grid-template-columns:minmax(0,1fr)}
+ .view-child .child-work .task{padding:12px 13px}
+ .view-child .child-bonus-line{padding:9px 10px}
+ .view-child .score-month-calendar{gap:2px}
+ .view-child .score-calendar-day{min-width:0}
+ .view-child .week-grid-scroll{overflow-x:auto}
+ .view-child .week-matrix{min-width:700px}
+}
+@media (max-width:380px){
+ .view-parent .header-actions{gap:4px;flex-wrap:wrap;justify-content:flex-end}
+ .view-parent .header-actions .mode{font-size:11px;min-height:34px;padding:6px 8px}
+ .view-child .child-work .behavior-summary>div{padding:8px 5px}
+ .view-child .child-work .behavior-summary strong{font-size:14px}
+}
