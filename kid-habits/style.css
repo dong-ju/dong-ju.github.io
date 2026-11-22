@@ -897,3 +897,13 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
 .study-next span{font-size:11px;color:#819184}
 .view-parent .study-next{margin-top:7px;font-size:12px}
 .view-child .child-work .study-next{font-size:12px;line-height:1.4;margin-top:7px}
+
+/* Parent-only child preview marker */
+.wrap.view-child .preview-label{
+ display:inline-flex;align-items:center;margin-left:auto;padding:6px 9px;
+ color:#6a7b6f;background:#f2f5f1;border:1px solid #e1e8df;
+ border-radius:8px;font-size:12px;font-weight:560;line-height:1.35;
+}
+@media(max-width:530px){
+ .wrap.view-child .preview-label{font-size:11px;padding:6px 7px}
+}
