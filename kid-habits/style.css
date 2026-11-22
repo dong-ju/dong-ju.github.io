@@ -1075,3 +1075,50 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
  .view-child .child-work .behavior-summary>div{padding:8px 5px}
  .view-child .child-work .behavior-summary strong{font-size:14px}
 }
+
+
+/* Shared DB and three visible study options v16 */
+.top .sync-indicator{
+ display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 auto;margin-left:auto;
+ width:15px;height:15px;
+ color:#3a9565;font-size:12px;line-height:1;
+}
+.top .sync-indicator.is-saving{color:#be9353}
+.top .sync-indicator.is-offline{color:#bd655e}
+.top .sync-indicator+.header-actions{margin-left:0}
+.view-child .subitem.study-upcoming{
+ color:#8c978e;opacity:.88;background:#fafbfa;border-radius:7px;
+}
+.view-child .subitem.study-upcoming .dot{background:#f8faf8;border-color:#d5ded6}
+.view-child .subitem.study-current{color:#2c5b44}
+.view-parent .subitem.study-current{color:#2c5b44}
+.study-today-chip{
+ font-size:10px;line-height:1.4;white-space:nowrap;
+ margin-left:auto;border-radius:5px;
+ padding:2px 5px;background:#e7f3e9;color:#31704d;font-weight:740;
+}
+.view-parent .subitem.study-upcoming{opacity:.7}
+.view-child .study-list{gap:4px}
+.device-code-row{
+ display:flex;align-items:center;justify-content:space-between;
+ gap:12px;padding:12px 0;border-bottom:1px solid #ecf0ec;
+}
+.device-code-row>div{min-width:0;display:grid;gap:4px}
+.device-code-row strong{font-size:13px;color:#395441}
+.device-code-row small{font-size:11px;color:#879589}
+.device-code-value{
+ border:1px solid #d5e4d6;border-radius:9px;background:#f6faf6;
+ padding:15px 10px;font-size:15px;font-weight:760;
+ letter-spacing:.07em;word-break:break-all;text-align:center;
+ user-select:all;
+}
+.view-registration #pairCode{
+ font-size:14px;letter-spacing:.035em;text-align:left;
+}
+@media(max-width:410px){
+ .top .sync-indicator{width:12px;height:12px;font-size:10px}
+ .view-parent .top .header-actions{gap:4px}
+ .view-parent .top .header-actions .mode{font-size:11px;padding:7px 7px}
+ .study-today-chip{font-size:10px;padding:2px 4px}
+}
