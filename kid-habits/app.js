@@ -651,8 +651,8 @@ function renderChildProgress(d,active,day){
   el("전체 기록 보기","child-history-button","history")+'</section>';
 }
 function header(r){
- const mark='<span class="brand-check" role="img" aria-label="보너스 시간 — 좋은 습관의 성장">'+
-  '<img src="/kid-habits/icon.svg?v=habit-growth-1" width="40" height="40" alt="" aria-hidden="true"></span>';
+ const mark='<span class="brand-check" role="img" aria-label="좋은습관">'+
+  '<img src="/kid-habits/good-habit-icon-512.webp?v=good-habit-v1" width="40" height="40" alt="" aria-hidden="true"></span>';
  return '<header class="top">'+mark+'<div class="header-actions">'+(r==="parent"?el("전체 편집","mode","bulk-edit"):"")+
  (r?el(r==="parent"?"아이 화면":"부모 화면","mode","role"):"")+'</div></header>';
 }
@@ -708,7 +708,7 @@ function render(){
   app.innerHTML='<main class="wrap view-parent screen-'+screen+'">'+header(r)+balance+nav+content+'</main>';
  }
  if(r==="parent"&&pending>lastPending&&document.visibilityState==="visible"){
-  try{if("Notification" in window&&Notification.permission==="granted")new Notification("보너스 시간",{body:"확인할 항목 "+pending+"개",tag:"bonus-pending"});}catch(_){}
+  try{if("Notification" in window&&Notification.permission==="granted")new Notification("좋은습관",{body:"확인할 항목 "+pending+"개",tag:"bonus-pending"});}catch(_){}
  }
  lastPending=pending;
 }
@@ -1034,7 +1034,7 @@ function toolsPanel(){
 }
 function exportData(){
  const blob=new Blob([JSON.stringify(read(),null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
- a.href=url;a.download="보너스시간-"+seoulToday()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
+ a.href=url;a.download="좋은습관-"+seoulToday()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
  notify("백업 저장");
 }
 document.addEventListener("click",e=>{
