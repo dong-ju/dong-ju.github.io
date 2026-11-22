@@ -672,9 +672,27 @@ function header(r){
    el("아이 화면 미리보기","mode","role",'aria-label="아이 화면 미리보기, 뒤로 가기로 종료"')+
    '</div>':"")+'</header>';
 }
+function registerDevice(pin,mode){
+ if(pin!=="5555")throw Error("비밀번호를 확인해주세요.");
+ if(!["parent","child"].includes(mode))throw Error("사용할 화면을 선택해주세요.");
+ localStorage.setItem(MODE,mode);
+ localStorage.setItem(SETUP,"1");
+ childPreview=false;viewDay=seoulToday();screen="today";render();
+}
 function registration(){
- app.innerHTML='<main class="wrap view-registration">'+header(null)+'<section class="pin"><form id="pinForm"><label for="pin">최초 등록 비밀번호</label><input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" autofocus placeholder="4자리">'+
- '<button type="submit" class="primary">등록</button></form></section></main>';
+ app.innerHTML='<main class="wrap view-registration">'+header(null)+
+ '<section class="pin"><form id="pinForm">'+
+ '<h1 class="setup-title">좋은습관 시작하기</h1>'+
+ '<p class="setup-description">이 기기에서 사용할 화면을 선택해주세요.</p>'+
+ '<fieldset class="setup-modes"><legend>사용 모드 선택</legend>'+
+ '<label class="setup-mode"><input type="radio" name="deviceMode" value="parent" required>'+
+ '<span class="setup-mode-content"><strong>부모 모드</strong><small>할 일 관리 · 상벌 적용 · 아이 화면 미리보기</small></span></label>'+
+ '<label class="setup-mode"><input type="radio" name="deviceMode" value="child" required>'+
+ '<span class="setup-mode-content"><strong>아이 모드</strong><small>매일 할 일 체크 · 기록 확인</small></span></label></fieldset>'+
+ '<label for="pin" class="setup-pin-label">최초 등록 비밀번호</label>'+
+ '<input id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required autocomplete="off" placeholder="4자리">'+
+ '<p class="setup-note">아이 모드에서는 부모 화면으로 바꾸는 버튼이 표시되지 않습니다.</p>'+
+ '<button type="submit" class="primary">선택한 모드로 시작</button></form></section></main>';
 }
 function render(){
  if(localStorage.getItem(SETUP)!=="1"){registration();return;}
@@ -1046,7 +1064,20 @@ function useDialog(){
  '<div class="form-actions">'+el("취소","ghost","close")+'<button type="submit" class="primary">사용</button></div></form>');
 }
 function toolsPanel(){
- open('<div class="form"><div class="modal-head"><h2>데이터</h2>'+el("닫기","tiny","close")+'</div><div class="form-actions">'+el("백업 저장","ghost","export")+el("백업 불러오기","primary","import")+'</div><input id="restoreFile" type="file" accept=".json,application/json" hidden></div>');
+ requireParent();
+ open('<div class="form"><div class="modal-head"><h2>설정 · 데이터</h2>'+el("닫기","tiny","close")+'</div>'+
+ '<div class="parent-device-settings"><strong>이 기기의 사용 모드</strong>'+
+ '<p>현재: 부모 모드</p>'+
+ el("이 기기를 아이 모드로 설정","ghost","set-child-device")+
+ '<small>아이 모드로 설정하면 부모 화면 전환 버튼이 사라집니다. 기존 기록은 유지됩니다.</small>'+
+ '</div><div class="form-actions">'+el("백업 저장","ghost","export")+el("백업 불러오기","primary","import")+
+ '</div><input id="restoreFile" type="file" accept=".json,application/json" hidden></div>');
+}
+function assignChildMode(){
+ requireParent();
+ if(!confirm("이 기기를 아이 전용으로 설정할까요?\n아이 화면에는 부모 모드 전환 버튼이 표시되지 않습니다.\n저장된 기록은 유지됩니다."))return;
+ localStorage.setItem(MODE,"child");
+ viewDay=seoulToday();screen="today";statsAnchor=seoulToday();close();render();
 }
 function exportData(){
  const blob=new Blob([JSON.stringify(read(),null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
@@ -1119,6 +1150,7 @@ document.addEventListener("click",e=>{
   else if(act==="statprev"){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,-1);render();}
   else if(act==="statnext"&&period(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor).end<seoulToday()){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,1);render();}
   else if(act==="tools"&&role()==="parent")toolsPanel();
+  else if(act==="set-child-device"&&role()==="parent")assignChildMode();
   else if(act==="close")close();
   else if(act==="export"&&role()==="parent")exportData();
   else if(act==="import"&&role()==="parent")document.getElementById("restoreFile")?.click();
@@ -1131,8 +1163,7 @@ document.addEventListener("submit",e=>{
  const v=Object.fromEntries(new FormData(f).entries());
  try{
   if(f.id==="pinForm"){
-   if(v.pin!=="5555")throw Error("비밀번호를 확인해주세요.");
-   localStorage.setItem(SETUP,"1");localStorage.setItem(MODE,"parent");render();return;
+   registerDevice(v.pin,v.deviceMode);return;
   }
   if(f.id==="bulkForm"){
    saveBulkEditor(f);f.dataset.dirty="0";close();
