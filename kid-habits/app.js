@@ -3,7 +3,7 @@
 const STORE="kid_habits_personal_v1",SETUP="kid_habits_personal_setup_v1",MODE="kid_habits_personal_role_v1";
 const SYNC_TOKEN="good_habits_device_token_v1";
 const SYNC_URL="https://dnvphihaopivjcvkvvud.supabase.co/functions/v1/good-habits-sync/";
-const PAIR_URL="https://dnvphihaopivjcvkvvud.supabase.co/functions/v1/kid-habits/api/pair";
+let registering=false;
 let serverState=null,serverRevision=0,serverDevice=null,serverReady=false;
 let lastConfirmedState=null,syncOnline=true;
 let syncReading=false,syncWriteQueue=Promise.resolve(),outstandingWrites=0,childActionBusy=false;
@@ -11,7 +11,7 @@ function hasSyncToken(){return !!localStorage.getItem(SYNC_TOKEN);}
 function copyState(d){return JSON.parse(JSON.stringify(d));}
 async function syncRequest(route,body){
  const token=localStorage.getItem(SYNC_TOKEN);
- if(!token)throw Error("기기 연결 코드로 먼저 등록해주세요.");
+ if(!token)throw Error("기기를 연결한 뒤 다시 시도해주세요.");
  const res=await fetch(SYNC_URL+route,{
   method:body===undefined?"GET":"POST",
   headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
@@ -26,12 +26,35 @@ async function syncRequest(route,body){
  }
  return data;
 }
-async function pairRequest(code,roleName){
- const res=await fetch(PAIR_URL,{method:"POST",headers:{"Content-Type":"application/json"},
-  body:JSON.stringify({role:roleName,code}),cache:"no-store"});
- let data={};try{data=await res.json();}catch(_){}
- if(!res.ok)throw Error(data.error||"기기 연결 코드를 확인해주세요.");
- return data;
+async function autoRegisterDevice(selectedMode){
+ if(registering||hasSyncToken())return;
+ if(!["parent","child"].includes(selectedMode))return;
+ registering=true;
+ app.innerHTML='<main class="wrap view-registration">'+header(null)+
+  '<section class="pin"><h1 class="setup-title">좋은습관 연결 중</h1>'+
+  '<p class="setup-description">선택한 '+(selectedMode==="parent"?"부모":"아이")+' 화면을 공통 DB에 자동 연결합니다.</p></section></main>';
+ try{
+  const res=await fetch(SYNC_URL+"auto-pair",{
+   method:"POST",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({role:selectedMode}),cache:"no-store"
+  });
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok||!data.token||data.role!==selectedMode)
+   throw Error(data.error||"DB 자동 연결에 실패했습니다.");
+  localStorage.setItem(SYNC_TOKEN,data.token);
+  localStorage.setItem(MODE,data.role);
+  localStorage.setItem(SETUP,"1");
+  childPreview=false;viewDay=seoulToday();screen="today";
+  await loadFromDatabase(true);
+  if(!serverReady)throw Error("DB 데이터를 불러오지 못했습니다.");
+  notify("좋은습관 연결 완료");
+ }catch(err){
+  if(!serverReady){
+   if(hasSyncToken())render();
+   else registration();
+  }
+  notify(err.message||"DB 자동 연결 실패");
+ }finally{registering=false;}
 }
 async function loadFromDatabase(force=false){
  if(!hasSyncToken()||syncReading||outstandingWrites||childActionBusy)return;
@@ -39,18 +62,6 @@ async function loadFromDatabase(force=false){
  try{
   let result=await syncRequest("state");
   serverDevice=result.device;
-  if(!result.state&&result.device?.role==="parent"){
-   // The first connected parent migrates the existing local data exactly once.
-   // Existing remote state always wins over each device's local data.
-   try{
-    const initial=readLocal();
-    const created=await syncRequest("save",{revision:0,state:initial});
-    result={...result,state:initial,revision:created.revision};
-   }catch(err){
-    if(err.status===409)result=await syncRequest("state");
-    else throw err;
-   }
-  }
   if(result.state){
    syncOnline=true;
    if(!serverReady||result.revision!==serverRevision||force){
@@ -68,7 +79,7 @@ async function loadFromDatabase(force=false){
    localStorage.removeItem(SYNC_TOKEN);
    localStorage.removeItem(SETUP);
    registration();
-   notify("기기 연결이 만료되었습니다. 연결 코드를 다시 입력해주세요.");
+   notify("기기 연결이 만료되었습니다. 사용할 모드를 다시 선택해주세요.");
   }else{
    if(force||!serverReady)notify(err.message||"DB에 연결할 수 없습니다.");
    if(serverReady)render();
@@ -811,48 +822,23 @@ function header(r){
    el("아이 모드로 전환","mode","role",'aria-label="아이 모드로 일시 전환"')+
    '</div>':"")+'</header>';
 }
-async function registerDeviceFromLink(mode,code){
- if(!["parent","child"].includes(mode)||!/^[0-9a-f]{30}$/i.test(code))
-  throw Error("연결 링크를 확인해주세요.");
- const paired=await pairRequest(code,mode);
- localStorage.setItem(SYNC_TOKEN,paired.token);
- localStorage.setItem(MODE,paired.role);
- localStorage.setItem(SETUP,"1");
- childPreview=false;viewDay=seoulToday();screen="today";
- render();
- await loadFromDatabase(true);
- if(serverReady)notify("공통 DB 자동 연결 완료 · "+paired.label);
-}
-function autoJoinFromLink(){
- const raw=window.location.hash||"";
- const match=/^#join=(parent|child):([0-9a-f]{30})$/i.exec(raw);
- if(!match)return false;
- // Fragment never goes to the server. Remove the secret before displaying anything.
- window.history.replaceState(null,"",window.location.pathname+window.location.search);
- if(hasSyncToken()){
-  void loadFromDatabase(true);
-  return true;
- }
- app.innerHTML='<main class="wrap view-registration">'+header(null)+
-  '<section class="pin"><h1 class="setup-title">좋은습관 연결 중</h1>'+
-  '<p class="setup-description">연결 링크로 자동 등록하고 있습니다. 비밀번호나 코드를 입력할 필요가 없습니다.</p></section></main>';
- void registerDeviceFromLink(match[1].toLowerCase(),match[2].toLowerCase())
-  .catch(err=>{registration();notify(err.message||"기기 자동 연결 실패");});
- return true;
-}
 function registration(){
  app.innerHTML='<main class="wrap view-registration">'+header(null)+
- '<section class="pin"><h1 class="setup-title">좋은습관</h1>'+
- '<p class="setup-description">이 기기는 아직 가족 DB에 연결되지 않았습니다.</p>'+
- '<p class="setup-description">부모가 공유한 <strong>전용 연결 링크</strong>를 이 기기에서 열면 자동으로 연결됩니다.</p>'+
- '<p class="setup-note">부모·아이 모드, 비밀번호, 연결 코드를 직접 입력할 필요가 없습니다. 이미 연결된 기기의 기록은 그대로 유지됩니다.</p>'+
+ '<section class="pin"><h1 class="setup-title">좋은습관 시작하기</h1>'+
+ '<p class="setup-description">이 기기에서 사용할 화면을 선택해주세요.</p>'+
+ '<div class="setup-modes" role="group" aria-label="기기 사용 모드">'+
+ '<button type="button" class="setup-mode setup-mode-button" data-action="choose-device" data-role="parent">'+
+ '<span class="setup-mode-content"><strong>부모 모드</strong><small>할 일 관리 · 확인과 상벌 · 아이 화면 일시 전환</small></span></button>'+
+ '<button type="button" class="setup-mode setup-mode-button" data-action="choose-device" data-role="child">'+
+ '<span class="setup-mode-content"><strong>아이 모드</strong><small>오늘 할 일 체크 · 주간·월간 기록 확인</small></span></button></div>'+
+ '<p class="setup-note">선택하면 공통 DB에 자동 연결되고, 다른 기기와 같은 기록을 사용합니다.</p>'+
  '</section></main>';
 }
 function render(){
- if(localStorage.getItem(SETUP)!=="1"||!hasSyncToken()){registration();return;}
+ if(!hasSyncToken()){registration();return;}
  if(!serverReady){
   app.innerHTML='<main class="wrap view-registration">'+header(null)+
-    '<section class="pin"><h2>공통 DB 연결 중</h2><p class="setup-description">부모 기기가 먼저 연결되어 데이터를 등록했는지 확인합니다.</p>'+
+    '<section class="pin"><h2>공통 DB 연결 중</h2><p class="setup-description">공통 DB에서 할 일과 기록을 불러오고 있습니다.</p>'+
     el("다시 불러오기","primary","sync-retry")+'</section></main>';
   return;
  }
@@ -1228,39 +1214,11 @@ function toolsPanel(){
  requireParent();
  open('<div class="form"><div class="modal-head"><h2>설정 · 데이터</h2>'+el("닫기","tiny","close")+'</div>'+
  '<div class="parent-device-settings"><strong>공통 DB</strong>'+
- '<p>연결됨 · '+safe(serverDevice?.label||"부모")+' · DB 자동 갱신</p>'+
- el("아이·부모 기기 연결 링크","ghost","device-list")+
- '<small>아이 태블릿이나 다른 부모 휴대폰에서 연결할 때 사용할 코드를 발급할 수 있습니다. 이미 연결된 기기의 코드를 새로 발급하면 이전 연결은 해제됩니다.</small>'+
- '</div><div class="form-actions">'+el("DB 데이터 백업","ghost","export")+el("백업 불러오기","primary","import")+
+ '<p>연결됨 · '+safe(serverDevice?.label||"부모 모드")+' · 자동 갱신</p>'+
+ '<small>부모와 아이 기기는 같은 데이터를 사용합니다.</small>'+
+ '</div><div class="form-actions">'+el("DB 데이터 백업","ghost","export")+
+ el("백업 불러오기","primary","import")+
  '</div><input id="restoreFile" type="file" accept=".json,application/json" hidden></div>');
-}
-async function showDeviceCodes(){
- requireParent();
- const result=await syncRequest("devices");
- const rows=result.devices||[];
- open('<div class="form"><div class="modal-head"><h2>기기 연결</h2>'+el("닫기","tiny","close")+'</div>'+
- '<p class="setup-note">다른 휴대폰·태블릿에 보낼 1회용 연결 링크를 발급합니다. 링크를 열면 별도 입력 없이 자동 연결됩니다.</p>'+
- rows.map(d=>'<div class="device-code-row"><div><strong>'+safe(d.label)+'</strong>'+
- '<small>'+(d.role==="parent"?"부모용":"아이용")+' · '+(d.paired_at?"연결됨":"연결 전")+'</small></div>'+
- el("링크 발급","tiny","device-code",'data-id="'+safe(d.id)+'" data-connected="'+(d.paired_at?"1":"0")+'"')+
- '</div>').join("")+'</div>');
-}
-async function issueDeviceCode(id,isConnected){
- requireParent();
- if(isConnected&&!confirm("이미 연결된 기기입니다. 새 코드를 발급하면 기존 기기의 연결이 해제됩니다. 계속할까요?"))return;
- const d=await syncRequest("reissue",{targetId:id});
- const link="https://dong-ju.github.io/kid-habits/?v=17#join="+d.role+":"+d.code;
- open('<div class="form"><div class="modal-head"><h2>'+safe(d.label)+' 연결 링크</h2>'+el("닫기","tiny","close")+'</div>'+
- '<p class="setup-note">대상 기기에서 아래 링크를 열면 '+(d.role==="child"?"아이":"부모")+' 모드로 자동 연결됩니다. 연결 코드는 한 번만 사용할 수 있습니다.</p>'+
- '<a class="device-code-value device-link-value" href="'+safe(link)+'" target="_blank" rel="noopener noreferrer">'+
- '좋은습관 · '+safe(d.label)+' 연결 열기</a>'+
- el("연결 링크 복사","primary","copy-link",'data-link="'+safe(link)+'"')+'</div>');
-}
-function assignChildMode(){
- requireParent();
- if(!confirm("이 기기를 아이 전용으로 설정할까요?\n아이 화면에는 부모 모드 전환 버튼이 표시되지 않습니다.\n저장된 기록은 유지됩니다."))return;
- localStorage.setItem(MODE,"child");
- viewDay=seoulToday();screen="today";statsAnchor=seoulToday();close();render();
 }
 function exportData(){
  const blob=new Blob([JSON.stringify(read(),null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
@@ -1271,7 +1229,10 @@ document.addEventListener("click",e=>{
  const t=e.target.closest("[data-action]");if(!t)return;
  const act=t.dataset.action,hid=t.dataset.id;
  try{
-  if(act==="role"&&role()==="parent"){
+  if(act==="choose-device"){
+   void autoRegisterDevice(t.dataset.role);
+  }
+  else if(act==="role"&&role()==="parent"){
    previewChild();
   }
   else if(act==="return-parent"&&childPreview){
@@ -1336,11 +1297,6 @@ document.addEventListener("click",e=>{
   else if(act==="statprev"){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,-1);render();}
   else if(act==="statnext"&&period(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor).end<seoulToday()){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,1);render();}
   else if(act==="tools"&&role()==="parent")toolsPanel();
-  else if(act==="device-list"&&role()==="parent")void showDeviceCodes().catch(e=>notify(e.message));
-  else if(act==="device-code"&&role()==="parent")void issueDeviceCode(hid,t.dataset.connected==="1").catch(e=>notify(e.message));
-  else if(act==="copy-link"&&role()==="parent"){
-   void navigator.clipboard.writeText(t.dataset.link||"").then(()=>notify("연결 링크 복사 완료")).catch(()=>notify("링크를 길게 눌러 공유해주세요."));
-  }
   else if(act==="sync-retry")void loadFromDatabase(true);
   else if(act==="close")close();
   else if(act==="export"&&role()==="parent")exportData();
@@ -1403,14 +1359,10 @@ document.addEventListener("visibilitychange",()=>{
  if(document.visibilityState==="visible"&&hasSyncToken())void loadFromDatabase(true);
 });
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/kid-habits/sw.js",{scope:"/kid-habits/"}).catch(()=>{});
-const joiningByLink=autoJoinFromLink();
-if(!joiningByLink&&hasSyncToken()){
- void loadFromDatabase(true);
-}
-window.addEventListener("hashchange",()=>{void autoJoinFromLink();});
+if(hasSyncToken())void loadFromDatabase(true);
 setInterval(()=>{
  if(hasSyncToken()&&document.visibilityState==="visible"&&!outstandingWrites&&!childActionBusy)void loadFromDatabase();
 },5000);
 window.addEventListener("online",()=>{if(hasSyncToken())void loadFromDatabase(true);});
-if(!joiningByLink)render();
+render();
 })();

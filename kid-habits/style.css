@@ -1134,3 +1134,29 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
 .view-registration .pin:not(:has(form)){display:grid;gap:15px}
 .view-registration .pin:not(:has(form)) .setup-description{margin:0}
 .view-registration .pin:not(:has(form)) .setup-note{margin:0}
+
+/* Personal-only first-install role picker v18 */
+.view-registration .setup-mode-button{
+ appearance:none;-webkit-appearance:none;
+ width:100%;text-align:left;min-height:82px;
+ font:inherit;outline-offset:3px;
+}
+.view-registration .setup-mode-button:hover{
+ border-color:#91b69a;background:#f7fbf7;
+}
+.view-registration .setup-mode-button:focus-visible{
+ outline:2px solid #337853;
+}
+.view-registration .setup-mode-button .setup-mode-content{
+ text-align:left;
+}
+.view-registration .setup-mode-button .setup-mode-content strong{
+ display:block;font-size:15px;line-height:1.45;
+}
+.view-registration .setup-mode-button .setup-mode-content small{
+ display:block;font-size:12px;line-height:1.4;
+}
+@media(min-width:640px) and (orientation:landscape){
+ .view-registration{padding-top:clamp(16px,4vh,35px)}
+ .view-registration .pin{margin-top:24px}
+}
