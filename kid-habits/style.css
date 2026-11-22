@@ -1122,3 +1122,15 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
  .view-parent .top .header-actions .mode{font-size:11px;padding:7px 7px}
  .study-today-chip{font-size:10px;padding:2px 4px}
 }
+
+/* No-entry one-tap family pairing v17 */
+.device-link-value{
+ display:block;margin:15px 0;text-align:center;
+ font-size:14px;line-height:1.55;text-decoration:none;
+ color:#2c6544;background:#f2f8f2;
+ padding:17px 12px;word-break:keep-all;
+}
+.device-link-value:hover,.device-link-value:focus-visible{background:#e7f4e8;outline:2px solid #7caa84;outline-offset:2px}
+.view-registration .pin:not(:has(form)){display:grid;gap:15px}
+.view-registration .pin:not(:has(form)) .setup-description{margin:0}
+.view-registration .pin:not(:has(form)) .setup-note{margin:0}
