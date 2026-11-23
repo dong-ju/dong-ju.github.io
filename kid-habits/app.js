@@ -1148,7 +1148,8 @@ function bulkTaskRow(h){
   '<strong class="bulk-summary-title">'+safe(e.title||"새 할 일")+'</strong>'+
   '<small class="bulk-summary-extra">+'+e.reward_minutes+'분 · '+(e.items.length?e.items.length+"개 하위 항목":"단일 체크")+
   (groups.length?" · "+groups.length+"개 묶음":"")+'</small>'+
-  '</span><span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
+  '</span>'+reorderButtons("bulk-move","tasks",e.title||"새 할 일")+
+  '<span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
   '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
   '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
   '<div class="bulk-inline-fields"><label>할 일 이름<input name="task-title" maxlength="80" value="'+safe(e.title)+'"></label>'+
@@ -1178,7 +1179,8 @@ function bulkSubRow(item,groups=[]){
   '<option value="">필수</option>'+
   groups.map(g=>'<option value="'+safe(g.id)+'" '+(g.id===choice?"selected":"")+'>'+safe(g.title)+'</option>').join("")+
   '</select>'+
-  el("×","tiny muted","bulk-remove-sub",'aria-label="하위 항목 삭제"')+'</div>';
+  '<span class="bulk-row-control-group">'+reorderButtons("bulk-move","subitems",title||"하위 항목")+
+  el("×","tiny muted","bulk-remove-sub",'aria-label="하위 항목 삭제"')+'</span></div>';
 }
 function bulkGroupDefinitions(row){
  return Array.from(row.querySelectorAll(".bulk-group-row")).map(entry=>({
@@ -1202,7 +1204,8 @@ function bulkBonusRow(item){
   '<summary class="bulk-summary"><span class="bulk-summary-left">'+
   '<strong class="bulk-summary-title">'+safe(b.title||"새 상벌")+'</strong>'+
   '<small class="bulk-summary-extra '+(b.minutes>0?"positive":"negative")+'">'+(b.minutes>0?"+":"")+b.minutes+'분</small>'+
-  '</span><span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
+  '</span>'+reorderButtons("bulk-move","bonuses",b.title||"새 상벌")+
+  '<span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
   '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
   '<div class="bulk-panel"><input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
   '<label>상벌 이름<input name="bonus-title" maxlength="80" value="'+safe(b.title)+'"></label>'+
@@ -1220,18 +1223,26 @@ function bulkEditor(){
    '<div class="bulk-editor-head"><h2>항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
    '<div class="bulk-tabs" role="tablist" aria-label="편집할 항목">'+
    '<button type="button" role="tab" aria-selected="true" class="bulk-tab active" data-action="bulk-tab" data-panel="tasks">할 일 <small>'+habits.length+'</small></button>'+
-   '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button></div>'+
+   '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button>'+
+   '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="sections">화면 순서</button></div>'+
    '<section class="bulk-section" id="bulkPanelTasks" data-bulk-panel="tasks" role="tabpanel">'+
    '<div class="bulk-section-head"><span>수정할 항목을 선택하세요</span>'+el("+ 할 일","tiny","bulk-add-task")+'</div>'+
    '<div id="bulkTasks" class="bulk-list">'+habits.map(bulkTaskRow).join("")+'</div></section>'+
    '<section class="bulk-section" id="bulkPanelBonuses" data-bulk-panel="bonuses" role="tabpanel" hidden>'+
    '<div class="bulk-section-head"><span>수정할 상벌을 선택하세요</span>'+el("+ 상벌","tiny","bulk-add-bonus")+'</div>'+
    '<div id="bulkBonuses" class="bulk-list">'+d.bonusItems.map(bulkBonusRow).join("")+'</div></section>'+
+   '<section class="bulk-section" id="bulkPanelSections" data-bulk-panel="sections" role="tabpanel" hidden>'+
+   '<div class="bulk-section-head"><span>아이 화면에도 같은 순서가 표시됩니다.</span></div>'+
+   '<div id="bulkSections" class="bulk-list">'+displaySections(d).map(id=>{
+    const labels={habits:"매일 할 일",oneTime:"1회성 할 일",bonuses:"상벌 보너스"};
+    return '<div class="bulk-section-order-row" data-section-id="'+safe(id)+'"><strong>'+safe(labels[id])+'</strong>'+
+     reorderButtons("bulk-move","sections",labels[id])+'</div>';
+   }).join("")+'</div></section>'+
    '<div class="bulk-footer">'+el("취소","ghost","close")+
    '<button type="submit" class="primary">변경사항 저장</button></div></form>');
 }
 function bulkSetTab(name){
- const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses"].includes(name))return;
+ const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses","sections"].includes(name))return;
  form.querySelectorAll("[data-bulk-panel]").forEach(panel=>{
   panel.hidden=panel.dataset.bulkPanel!==name;
  });
@@ -1327,6 +1338,11 @@ function saveBulkEditor(form){
     !["add","subtract"].includes(type))throw Error("상벌 이름, 종류, 시간을 확인해주세요.");
   return {...(prev||{id:uid()}),title,minutes:minutes*(type==="add"?1:-1),active:bool(row,"bonus-active")};
  });
+ const sectionOrder=Array.from(form.querySelectorAll("#bulkSections .bulk-section-order-row")).map(x=>x.dataset.sectionId);
+ if(sectionOrder.length!==3||new Set(sectionOrder).size!==3||
+  sectionOrder.some(id=>!["habits","oneTime","bonuses"].includes(id)))
+  throw Error("화면 표시 순서를 확인해주세요.");
+ d.displaySections=sectionOrder;
  d.habits=[...updatedTasks,...d.habits.filter(x=>x.moved_to_parent_bonus)];
  d.bonusItems=updatedBonuses;
  save(d);render();
