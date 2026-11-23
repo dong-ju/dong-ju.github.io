@@ -1485,7 +1485,7 @@ function openBulkDetail(row,removeOnCancel=false){
  const isTask=row.classList.contains("bulk-task-row");
  const typeName=isTask?"매일 할 일":"상벌";
  bulkDetailDialog.innerHTML=
-  '<div class="bulk-detail-head"><div><small>'+typeName+'</small><h2>상세 편집</h2></div>'+
+  '<div class="bulk-detail-head"><div><small>'+typeName+'</small><h2 tabindex="-1">상세 편집</h2></div>'+
   '<button type="button" class="bulk-detail-close" data-action="bulk-detail-cancel" aria-label="상세 편집 취소">×</button></div>'+
   '<div class="bulk-detail-scroll bulk-form"><div class="bulk-detail-content"></div></div>'+
   '<div class="bulk-detail-footer">'+
@@ -1494,7 +1494,8 @@ function openBulkDetail(row,removeOnCancel=false){
  bulkDetailDialog.querySelector(".bulk-detail-content").appendChild(row);
  activeBulkDetail={row,slot,previous,removeOnCancel};
  bulkDetailDialog.showModal();
- row.querySelector(isTask?'[name="task-title"]':'[name="bonus-title"]')?.focus({preventScroll:true});
+ // Keep the on-screen keyboard closed; focus the heading, never an input.
+ bulkDetailDialog.querySelector(".bulk-detail-head h2")?.focus({preventScroll:true});
 }
 function closeBulkDetail(accept=false){
  const detail=activeBulkDetail;
