@@ -2,11 +2,83 @@
 "use strict";
 const STORE="kid_habits_personal_v1",SETUP="kid_habits_personal_setup_v1",MODE="kid_habits_personal_role_v1";
 const SYNC_TOKEN="good_habits_device_token_v1";
+const SYNC_CACHE="good_habits_last_confirmed_state_v1";
+const REALTIME_KEY="sb_publishable_a13fHmGNGIhJ1cVNvTsUtA_xtLmYt03";
+let realtimeClient=null,realtimeChannel=null,realtimeConnected=false,realtimeStarted=false;
+let lastSyncStatus="cached";
+function persistConfirmedState(){
+ if(!hasSyncToken()||!serverState||!serverRevision)return;
+ try{
+  localStorage.setItem(SYNC_CACHE,JSON.stringify({
+   fingerprint:localStorage.getItem(SYNC_TOKEN).slice(-12),
+   state:lastConfirmedState||serverState,
+   revision:serverRevision,
+   device:serverDevice||{role:localStorage.getItem(MODE)||"parent"},
+   updatedAt:new Date().toISOString()
+  }));
+ }catch(e){console.warn("좋은습관 로컬 캐시 저장 실패",e);}
+}
+function restoreLastSavedState(){
+ if(!hasSyncToken())return false;
+ try{
+  const raw=localStorage.getItem(SYNC_CACHE);
+  if(!raw)return false;
+  const cached=JSON.parse(raw);
+  if(cached.fingerprint!==localStorage.getItem(SYNC_TOKEN).slice(-12)
+    ||!Number.isSafeInteger(cached.revision)||cached.revision<1
+    ||!cached.state||!validate(cached.state)
+    ||!["parent","child"].includes(cached.device?.role))return false;
+  serverState=copyState(cached.state);
+  lastConfirmedState=copyState(cached.state);
+  serverRevision=cached.revision;
+  serverDevice=cached.device;
+  serverReady=true;
+  syncOnline=navigator.onLine!==false;
+  lastSyncStatus="cached";
+  return true;
+ }catch(e){console.warn("좋은습관 로컬 캐시 복원 실패",e);return false;}
+}
+function refreshSyncIndicator(){
+ const dot=document.querySelector(".sync-indicator");
+ if(dot){
+  const label=!syncOnline?"오프라인 · 마지막 저장 내용":outstandingWrites?"DB 저장 중":
+   lastSyncStatus==="cached"?"마지막 저장 내용 · 최신 확인 중":
+   realtimeConnected?"실시간 동기화":"동기화됨";
+  dot.setAttribute("aria-label",label);
+  dot.title=label;
+  dot.className="sync-indicator "+(!syncOnline?"is-offline":outstandingWrites?"is-saving":lastSyncStatus==="cached"?"is-saving":"");
+ }
+}
+function startRealtime(){
+ if(realtimeStarted||!hasSyncToken()||!window.supabase?.createClient||typeof WebSocket==="undefined")return;
+ realtimeStarted=true;
+ try{
+  realtimeClient=window.supabase.createClient("https://dnvphihaopivjcvkvvud.supabase.co",REALTIME_KEY,{
+   auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}
+  });
+  realtimeChannel=realtimeClient.channel("gh_home_revision",{config:{private:false}})
+   .on("broadcast",{event:"changed"},payload=>{
+    const revision=Number(payload?.payload?.revision);
+    if(Number.isFinite(revision)&&revision<=serverRevision)return;
+    if(document.visibilityState==="visible")void loadFromDatabase();
+   })
+   .subscribe(status=>{
+    realtimeConnected=status==="SUBSCRIBED";
+    if(realtimeConnected&&document.visibilityState==="visible")void loadFromDatabase();
+    refreshSyncIndicator();
+   });
+ }catch(error){
+  realtimeStarted=false;realtimeConnected=false;
+  console.warn("좋은습관 실시간 연결 실패 · 주기적 동기화로 대체",error);
+ }
+}
+
 const SYNC_URL="https://dnvphihaopivjcvkvvud.supabase.co/functions/v1/good-habits-sync/";
 let registering=false;
 let serverState=null,serverRevision=0,serverDevice=null,serverReady=false;
 let lastConfirmedState=null,syncOnline=true;
 let syncReading=false,syncWriteQueue=Promise.resolve(),outstandingWrites=0,childActionBusy=false;
+const queuedChildActions=[];
 function hasSyncToken(){return !!localStorage.getItem(SYNC_TOKEN);}
 function copyState(d){return JSON.parse(JSON.stringify(d));}
 async function syncRequest(route,body){
@@ -42,6 +114,7 @@ async function autoRegisterDevice(selectedMode){
   if(!res.ok||!data.token||data.role!==selectedMode)
    throw Error(data.error||"DB 자동 연결에 실패했습니다.");
   localStorage.setItem(SYNC_TOKEN,data.token);
+  localStorage.removeItem(SYNC_CACHE);
   localStorage.setItem(MODE,data.role);
   localStorage.setItem(SETUP,"1");
   childPreview=false;viewDay=seoulToday();screen="today";
@@ -66,7 +139,10 @@ async function loadFromDatabase(force=false){
    syncOnline=true;
    if(!serverReady||result.revision!==serverRevision||force){
     serverState=result.state;lastConfirmedState=copyState(result.state);
-    serverRevision=result.revision;serverReady=true;render();
+    serverRevision=result.revision;serverReady=true;lastSyncStatus="fresh";
+    persistConfirmedState();render();
+   }else{
+    lastSyncStatus="fresh";refreshSyncIndicator();
    }
   }else{
    serverReady=false;
@@ -77,12 +153,14 @@ async function loadFromDatabase(force=false){
   if(err.status===401){
    serverReady=false;
    localStorage.removeItem(SYNC_TOKEN);
+   localStorage.removeItem(SYNC_CACHE);
    localStorage.removeItem(SETUP);
    registration();
    notify("기기 연결이 만료되었습니다. 사용할 모드를 다시 선택해주세요.");
   }else{
-   if(force||!serverReady)notify(err.message||"DB에 연결할 수 없습니다.");
-   if(serverReady)render();
+   if(!serverReady)notify(err.message||"DB에 연결할 수 없습니다.");
+   // Keep the last confirmed screen intact if the server is unreachable.
+   refreshSyncIndicator();
   }
  }finally{syncReading=false;}
 }
@@ -94,6 +172,7 @@ function enqueueParentSave(documentState){
   const result=await syncRequest("save",{state:snapshot,revision:serverRevision});
   serverRevision=result.revision;
   lastConfirmedState=copyState(snapshot);syncOnline=true;
+  lastSyncStatus="fresh";persistConfirmedState();refreshSyncIndicator();
  }).catch(async err=>{
   syncOnline=false;
   notify((err.status===409?"다른 기기에서 수정했습니다. ":"")+err.message);
@@ -102,24 +181,80 @@ function enqueueParentSave(documentState){
    serverState=current.state;lastConfirmedState=copyState(current.state);
    serverRevision=current.revision;
    serverReady=!!current.state;serverDevice=current.device;syncOnline=true;
-   render();
+   lastSyncStatus="fresh";persistConfirmedState();render();
   }catch(_){
    // Do not leave a failed optimistic write displayed as committed.
    if(lastConfirmedState)serverState=copyState(lastConfirmedState);
    render();
   }
- }).finally(()=>{outstandingWrites--;});
+ }).finally(()=>{outstandingWrites--;refreshSyncIndicator();});
 }
-async function submitChildChange(action,habitId,itemId=null){
- if(!serverReady||!syncOnline||navigator.onLine===false||childActionBusy||outstandingWrites){
-  notify("DB 연결 또는 저장이 끝나면 다시 눌러주세요.");return;
+function optimisticChildChange(action,hid,itemId){
+ const d=copyState(serverState),day=seoulToday(),h=d.habits.find(x=>x.id===hid&&x.active);
+ if(!h)return;
+ const k=day+"|"+hid,existing=d.checks.find(x=>x.habit_id===hid&&x.day===day);
+ if(existing?.status==="approved")return;
+ const now=new Date().toISOString();
+ if(action==="complete"){
+  if(h.items.length)return;
+  if(existing?.status==="pending")d.checks=d.checks.filter(x=>x!==existing);
+  else if(!existing||existing.status==="rejected")pushCheck(d,h,day);
+ }else if(action==="toggle"){
+  const items=h.items||[],clicked=items.find(x=>x.id===itemId);
+  if(!clicked)return;
+  const done=new Set(d.subchecks[k]||[]);
+  if(!d.subcheckTimes[k])d.subcheckTimes[k]={};
+  if(done.has(itemId)){
+   done.delete(itemId);delete d.subcheckTimes[k][itemId];
+  }else{
+   const group=String(clicked.group||"").trim();
+   if(group)items.filter(x=>String(x.group||"").trim()===group).forEach(x=>{
+    done.delete(x.id);delete d.subcheckTimes[k][x.id];
+   });
+   done.add(itemId);d.subcheckTimes[k][itemId]=now;
+  }
+  d.subchecks[k]=Array.from(done);
+  if(taskUnitsDone(h,done)){
+   pushCheck(d,h,day);
+   const next=d.checks.find(x=>x.habit_id===hid&&x.day===day);
+   if(next)next.completed_items=selectedTaskItems(h,done).map(x=>({
+    title:x.title,at:d.subcheckTimes[k][x.id]||now
+   }));
+  }else if(existing?.status==="pending")d.checks=d.checks.filter(x=>x!==existing);
  }
- childActionBusy=true;
+ serverState=d;render();
+}
+async function flushChildActionQueue(){
+ if(childActionBusy||queuedChildActions.length===0)return;
+ childActionBusy=true;let failed=false;
  try{
-  await syncRequest("check",{action,habitId,itemId});
- }catch(err){notify(err.message||"체크를 저장하지 못했습니다.");}
- finally{childActionBusy=false;}
+  while(queuedChildActions.length){
+   const next=queuedChildActions.shift();
+   try{
+    await syncRequest("check",next);
+   }catch(err){
+    failed=true;
+    queuedChildActions.length=0;
+    notify(err.message||"체크를 저장하지 못했습니다.");
+    break;
+   }
+  }
+ }finally{
+  childActionBusy=false;
+ }
+ if(failed&&lastConfirmedState){
+  serverState=copyState(lastConfirmedState);render();
+ }
  await loadFromDatabase(true);
+}
+function submitChildChange(action,habitId,itemId=null){
+ if(!serverReady||!syncOnline||navigator.onLine===false||outstandingWrites){
+  notify("온라인 DB 연결이 필요합니다.");return;
+ }
+ // Optimistically update each tap and send requests to the server in order.
+ optimisticChildChange(action,habitId,itemId);
+ queuedChildActions.push({action,habitId,itemId});
+ void flushChildActionQueue();
 }
 
 const app=document.getElementById("app"),dialog=document.getElementById("modal"),dialogBody=document.getElementById("modalBody");
@@ -224,7 +359,7 @@ function readLocal(){
 }
 function read(){
  if(hasSyncToken()){
-  if(!serverReady||!serverState)throw Error("DB가 연결되지 않았습니다.");
+  if(!serverReady||!serverState)throw Error("저장된 데이터를 아직 불러오지 못했습니다.");
   return copyState(serverState);
  }
  return readLocal();
@@ -232,7 +367,7 @@ function read(){
 function save(d){
  if(hasSyncToken()){
   if(!serverReady||!syncOnline||navigator.onLine===false)
-   throw Error("DB가 연결되어 있을 때만 변경할 수 있습니다.");
+   throw Error("온라인 연결이 필요합니다. 최신 내용을 확인한 뒤 다시 시도해주세요.");
   if(role()!=="parent")throw Error("아이 체크는 DB의 전용 체크 기능을 사용해야 합니다.");
   serverState=copyState(d);
   enqueueParentSave(d);
@@ -819,10 +954,12 @@ function renderChildProgress(d,active,day){
 }
 function header(r){
  const mark='<span class="brand-check" role="img" aria-label="좋은습관">'+
-  '<img src="/kid-habits/good-habit-icon-512.webp?v=good-habit-v1" width="40" height="40" alt="" aria-hidden="true"></span>';
- const syncDot=r&&hasSyncToken()?'<span class="sync-indicator '+(!syncOnline?"is-offline":outstandingWrites?"is-saving":"")+'" role="status" aria-label="'+
-  (!syncOnline?"DB 연결 확인 필요":outstandingWrites?"DB 저장 중":"DB 연결됨")+'" title="'+
-  (!syncOnline?"DB 연결 확인 필요":outstandingWrites?"DB 저장 중":"DB 연결됨")+'">●</span>':"";
+  '<img src="/kid-habits/good-habit-icon-512.webp?v=good-habit-v1" width="40" height="40" alt="" aria-hidden="true" draggable="false"></span>';
+ const syncLabel=!syncOnline?"오프라인 · 마지막 저장 내용":outstandingWrites?"DB 저장 중":
+  lastSyncStatus==="cached"?"마지막 저장 내용 · 최신 확인 중":
+  realtimeConnected?"실시간 동기화":"DB 동기화됨";
+ const syncDot=r&&hasSyncToken()?'<span class="sync-indicator '+(!syncOnline?"is-offline":outstandingWrites||lastSyncStatus==="cached"?"is-saving":"")+
+  '" role="status" aria-label="'+syncLabel+'" title="'+syncLabel+'">●</span>':"";
  return '<header class="top">'+mark+syncDot+
   (r==="child"&&childPreview?'<div class="header-actions">'+el("부모 모드로 돌아가기","mode return-parent","return-parent",'aria-label="부모 모드로 돌아가기"')+'</div>':"")+
   (r==="parent"?'<div class="header-actions">'+
@@ -853,13 +990,12 @@ function render(){
  const d=read(),r=role(),day=r==="child"?seoulToday():viewDay;
  if(r==="parent"&&day>seoulToday())viewDay=seoulToday();
  const active=d.habits.filter(h=>h.active).sort((a,b)=>a.sort_order-b.sort_order);
- if(active.some(h=>h.rotation&&h.items.length&&!d.studyDays[day])){
-  active.filter(h=>h.rotation&&h.items.length).forEach(h=>studyAssignment(d,day));
-  // Plan selection is computed when rendering; persisted in DB by an actual check.
- }
  const pending=d.checks.filter(c=>c.status==="pending").length;
- const balance='<section class="balance"><span>남은 보너스 시간</span><strong>'+time(totals(d))+'</strong>'+
-  (r==="parent"?'<div class="balance-actions">'+el("시간 사용","ghost","use")+'</div>':'')+'</section>';
+ const balance='<section class="balance balance-compact" aria-label="남은 보너스 시간">'+
+  '<div class="balance-amount"><span class="balance-caption">남은 보너스 시간</span>'+
+  '<strong class="balance-number">'+time(totals(d))+'</strong></div>'+
+  (r==="parent"?'<div class="balance-actions">'+el("시간 사용","ghost","use")+'</div>':'')+
+  '</section>';
  const nav=r==="child"?
   '<nav class="child-view-tabs" aria-label="조회 기간">'+
    el("오늘","view-tab "+(screen==="today"?"selected":""),"child-tab",'data-tab="today" aria-pressed="'+(screen==="today")+'"')+
@@ -1427,10 +1563,22 @@ document.addEventListener("visibilitychange",()=>{
  if(document.visibilityState==="visible"&&hasSyncToken())void loadFromDatabase(true);
 });
 if("serviceWorker" in navigator)navigator.serviceWorker.register("/kid-habits/sw.js",{scope:"/kid-habits/"}).catch(()=>{});
-if(hasSyncToken())void loadFromDatabase(true);
+let lastBackgroundCheck=Date.now();
 setInterval(()=>{
- if(hasSyncToken()&&document.visibilityState==="visible"&&!outstandingWrites&&!childActionBusy)void loadFromDatabase();
-},5000);
-window.addEventListener("online",()=>{if(hasSyncToken())void loadFromDatabase(true);});
+ if(!hasSyncToken()||document.visibilityState!=="visible"||outstandingWrites||childActionBusy)return;
+ const now=Date.now(),interval=realtimeConnected?120000:12000;
+ if(now-lastBackgroundCheck<interval)return;
+ lastBackgroundCheck=now;
+ void loadFromDatabase();
+},12000);
+window.addEventListener("online",()=>{
+ if(hasSyncToken()){syncOnline=true;startRealtime();void loadFromDatabase(true);}
+});
+restoreLastSavedState();
 render();
+window.goodHabitsRealtimeReady=startRealtime;
+if(hasSyncToken()){
+ startRealtime();
+ void loadFromDatabase();
+}
 })();

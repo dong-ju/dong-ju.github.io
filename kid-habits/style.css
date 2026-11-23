@@ -1212,3 +1212,84 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
  .bulk-group-row{gap:5px;padding:6px}
  .bulk-group-row .tiny{font-size:10px;padding:5px 7px}
 }
+
+/* Instant cached startup, compact bonus and no drag-select v21 */
+body{
+ background:#f7f8f6;
+ -webkit-user-select:none;user-select:none;
+ -webkit-touch-callout:none;
+}
+body *{-webkit-user-select:none;user-select:none}
+input,textarea,select,[contenteditable="true"],.device-code-value{
+ -webkit-user-select:text!important;user-select:text!important;
+ -webkit-touch-callout:default;
+}
+img{ -webkit-user-drag:none;user-drag:none;pointer-events:none }
+button,.subitem.selectable,.task-click{touch-action:manipulation}
+.top .brand-check,.wrap.view-child .top .brand-check{
+ display:inline-flex;
+ width:40px;height:40px;flex:0 0 40px;aspect-ratio:1;
+ border-radius:12px;overflow:hidden;
+ background:#edf4ed;border:1px solid #dfe8de;
+}
+.top .brand-check img,.wrap.view-child .top .brand-check img{
+ display:block;width:100%;height:100%;
+ object-fit:cover;object-position:center;
+ border-radius:inherit;
+}
+.wrap.view-registration .top .brand-check{
+ border-radius:12px;
+ box-shadow:none;
+}
+.wrap .balance.balance-compact{
+ display:grid;
+ grid-template-columns:minmax(0,1fr) auto;
+ align-items:center;
+ gap:10px 14px;
+ padding:14px 17px;
+ min-height:85px;
+ border-radius:14px;
+ border:1px solid #d7e5da;
+ border-left:4px solid #75a084;
+ background:#eef5ef;
+ color:#244b35;
+ box-shadow:none;
+}
+.wrap .balance.balance-compact .balance-amount{
+ display:flex;flex-direction:column;align-items:flex-start;min-width:0;gap:5px;
+}
+.wrap .balance.balance-compact .balance-caption{
+ display:block;margin:0;
+ color:#65816d;font-size:12px;font-weight:670;line-height:1.4;
+}
+.wrap .balance.balance-compact .balance-number{
+ display:block;margin:0;
+ color:#26553a;
+ font-size:clamp(25px,3.3vw,36px);
+ line-height:1.14;letter-spacing:-1px;
+ font-weight:790;
+ white-space:normal;overflow-wrap:anywhere;
+}
+.wrap .balance.balance-compact .balance-actions{
+ display:flex;align-items:center;justify-content:flex-end;
+ flex:0 0 auto;
+ width:auto;margin:0;gap:0;
+}
+.wrap .balance.balance-compact .balance-actions button{
+ width:auto;min-width:86px;
+ min-height:42px;margin:0;padding:9px 13px;
+ font-size:13px;font-weight:700;
+ border-radius:10px;
+ background:#fff;color:#346447;border:1px solid #b6d2bd;
+}
+.wrap .balance.balance-compact .balance-actions button:hover{background:#f8fcf8}
+.wrap.view-child .balance.balance-compact{grid-template-columns:1fr;min-height:94px;padding:15px 17px}
+.wrap.view-child .balance.balance-compact .balance-caption{font-size:12px}
+.wrap.view-child .balance.balance-compact .balance-number{font-size:clamp(30px,3vw,40px)}
+@media(max-width:390px){
+ .wrap.view-parent .balance.balance-compact{padding:12px 13px;gap:8px}
+ .wrap.view-parent .balance.balance-compact .balance-number{font-size:26px}
+ .wrap.view-parent .balance.balance-compact .balance-actions button{
+  min-width:75px;min-height:40px;padding:8px 10px;font-size:12px
+ }
+}
