@@ -1547,6 +1547,17 @@ document.addEventListener("click",e=>{
    t.closest(".bulk-row").remove();
    bulkDirty(document.getElementById("bulkForm"));
   }
+  else if(act==="one-time-add"){oneTimeEditor(null);}
+  else if(act==="one-time-edit"){
+   const task=(read().oneTimeTasks||[]).find(x=>x.id===hid);
+   if(task&&(role()==="parent"||task.creatorRole==="child"))oneTimeEditor(task);
+  }
+  else if(act==="one-time-toggle"){void oneTimeAction("toggle",{id:hid});}
+  else if(act==="one-time-delete"){
+   const task=(read().oneTimeTasks||[]).find(x=>x.id===hid);
+   if(task&&(role()==="parent"||task.creatorRole==="child")&&confirm("이 할 일을 삭제할까요?"))
+    void oneTimeAction("delete",{id:hid});
+  }
   else if(act==="history")history();
   else if(act==="bonuses")bonusesPanel();
   // Bonus definitions are also edited together in the parent editor.
@@ -1574,6 +1585,13 @@ document.addEventListener("submit",e=>{
  e.preventDefault();
  const v=Object.fromEntries(new FormData(f).entries());
  try{
+  if(f.id==="oneTimeForm"){
+   if(!String(v.title||"").trim()||!v.dueOn)throw Error("이름과 날짜를 입력해주세요.");
+   const action=v.id?"update":"create";
+   void oneTimeAction(action,{id:v.id,title:String(v.title).trim(),dueOn:v.dueOn,
+     dueTime:v.dueTime||"",assignee:v.assignee},()=>close());
+   return;
+  }
   if(f.id==="bulkForm"){
    saveBulkEditor(f);f.dataset.dirty="0";close();
   }
