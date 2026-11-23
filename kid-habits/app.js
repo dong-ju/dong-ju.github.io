@@ -1153,7 +1153,7 @@ function renderChildProgress(d,active,day){
 }
 function header(r){
  const mark='<span class="brand-check" role="img" aria-label="좋은습관">'+
-  '<img src="/kid-habits/good-habit-icon-512.webp?v=good-habit-v1" width="40" height="40" alt="" aria-hidden="true" draggable="false"></span>';
+  '<img src="/kid-habits/good-habit-icon-transparent-512.png?v=44" width="40" height="40" alt="" aria-hidden="true" draggable="false"></span>';
  const syncLabel=!syncOnline?"오프라인 · 마지막 저장 내용":outstandingWrites?"DB 저장 중":
   lastSyncStatus==="cached"?"마지막 저장 내용 · 최신 확인 중":
   realtimeConnected?"실시간 동기화":"DB 동기화됨";
@@ -1273,8 +1273,7 @@ function render(){
   screen==="today"?
    '<div class="daybar">'+el("‹","date-button","prev",'aria-label="전날"')+'<span>'+dateLabel(day)+'</span>'+
    el("›","date-button","next",'aria-label="다음 날" '+(day>=seoulToday()?"disabled":""))+
-   '<span class="spacer"></span>'+el("기록 · 통계","tiny","history")+
-   el("⋯","tiny","tools",'aria-label="백업 및 복원"')+'</div>':
+   '<span class="spacer"></span>'+el("기록 · 통계","tiny","history")+'</div>':
    '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+
    el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
    el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
@@ -1812,21 +1811,6 @@ function useDialog(){
  '<label>사용 시간 (분)<input type="number" name="minutes" min="1" max="300" value="10" required></label>'+
  '<div class="form-actions">'+el("취소","ghost","close")+'<button type="submit" class="primary">사용</button></div></form>');
 }
-function toolsPanel(){
- requireParent();
- open('<div class="form"><div class="modal-head"><h2>설정 · 데이터</h2>'+el("닫기","tiny","close")+'</div>'+
- '<div class="parent-device-settings"><strong>공통 DB</strong>'+
- '<p>연결됨 · '+safe(serverDevice?.label||"부모 모드")+' · 자동 갱신</p>'+
- '<small>부모와 아이 기기는 같은 데이터를 사용합니다.</small>'+
- '</div><div class="form-actions">'+el("DB 데이터 백업","ghost","export")+
- el("백업 불러오기","primary","import")+
- '</div><input id="restoreFile" type="file" accept=".json,application/json" hidden></div>');
-}
-function exportData(){
- const blob=new Blob([JSON.stringify(read(),null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
- a.href=url;a.download="좋은습관-"+seoulToday()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
- notify("백업 저장");
-}
 document.addEventListener("pointerdown",beginRowDrag);
 document.addEventListener("pointermove",moveRowDrag,{passive:false});
 document.addEventListener("pointerup",event=>finishRowDrag(event));
@@ -1959,11 +1943,8 @@ document.addEventListener("click",e=>{
   else if(act==="statmode"){statsUnit=t.dataset.mode;statsAnchor=seoulToday();render();}
   else if(act==="statprev"){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,-1);render();}
   else if(act==="statnext"&&period(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor).end<seoulToday()){statsAnchor=movePeriod(screen==="week"?"week":screen==="month"?"month":statsUnit,statsAnchor,1);render();}
-  else if(act==="tools"&&role()==="parent")toolsPanel();
   else if(act==="sync-retry")void loadFromDatabase(true);
   else if(act==="close")close();
-  else if(act==="export"&&role()==="parent")exportData();
-  else if(act==="import"&&role()==="parent")document.getElementById("restoreFile")?.click();
  }catch(err){notify(err.message||"처리 실패");}
 });
 document.addEventListener("submit",e=>{
@@ -2013,17 +1994,6 @@ dialog.addEventListener("cancel",e=>{
  }
  if(document.getElementById("bulkForm")?.dataset.dirty==="1"&&!confirm("저장하지 않은 변경사항을 버릴까요?"))e.preventDefault();
 });
-document.addEventListener("change",async e=>{
- if(e.target.id!=="restoreFile"||!e.target.files?.length)return;
- if(role()!=="parent"){notify("부모 화면에서 관리해주세요.");return;}
- const file=e.target.files[0];e.target.value="";
- if(file.size>8e6){notify("파일 크기 초과");return;}
- try{
-  const d=JSON.parse(await file.text());if(!validate(d))throw Error("백업 형식을 확인해주세요.");
-  if(!confirm("현재 기록을 백업 내용으로 교체할까요?"))return;
-  save(migrate(d));close();render();notify("복원 완료");
- }catch(err){notify(err.message||"복원 실패");}
-});
 dialog.addEventListener("click",e=>{if(e.target===dialog)close();});
 window.addEventListener("storage",e=>{
  if(e.key===SYNC_TOKEN){
@@ -2044,8 +2014,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v43")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v43","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v44")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v44","1");
   window.location.reload();
  });
 }
