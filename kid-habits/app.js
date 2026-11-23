@@ -561,6 +561,43 @@ function setHabit(data){
  save(d);render();
 }
 function el(label,cls,action,attr=""){return '<button type="button" class="'+cls+'" data-action="'+action+'" '+attr+'>'+label+'</button>';}
+function reorderButtons(action,kind,label,attrs=""){
+ const meta='data-kind="'+safe(kind)+'" '+attrs;
+ return '<span class="reorder-buttons" role="group" aria-label="'+safe(label)+' 순서">'+
+  el("↑","tiny reorder-arrow",action,meta+' data-step="-1" aria-label="'+safe(label)+' 위로 이동"')+
+  el("↓","tiny reorder-arrow",action,meta+' data-step="1" aria-label="'+safe(label)+' 아래로 이동"')+'</span>';
+}
+function displaySections(d){
+ const allowed=["habits","oneTime","bonuses"],stored=Array.isArray(d.displaySections)?d.displaySections:[];
+ return [...new Set([...stored.filter(k=>allowed.includes(k)),...allowed])];
+}
+function moveEditorItem(control){
+ requireParent();
+ const selectors={tasks:[".bulk-task-row","#bulkTasks"],bonuses:[".bulk-bonus-row","#bulkBonuses"],
+  subitems:[".bulk-subitem",".bulk-subitems"],sections:[".bulk-section-order-row","#bulkSections"]};
+ const rule=selectors[control.dataset.kind],step=Number(control.dataset.step);
+ if(!rule||![-1,1].includes(step))return;
+ const entry=control.closest(rule[0]),container=entry?.parentElement;
+ if(!entry||!container||!container.matches(rule[1]))return;
+ const other=step<0?entry.previousElementSibling:entry.nextElementSibling;
+ if(!other||!other.matches(rule[0]))return;
+ if(step<0)container.insertBefore(entry,other);
+ else container.insertBefore(other,entry);
+ bulkDirty(document.getElementById("bulkForm"));
+ control.focus();
+}
+function moveOneTimeTask(id,step){
+ requireParent();
+ if(oneTimeBusy||outstandingWrites||childActionBusy)throw Error("저장 중입니다. 잠시 후 다시 시도해주세요.");
+ const d=read(),tasks=d.oneTimeTasks||[],index=tasks.findIndex(t=>t.id===id);
+ if(index<0||![-1,1].includes(step))return;
+ const completed=!!tasks[index].completedAt;
+ const same=tasks.map((t,i)=>!!t.completedAt===completed?i:-1).filter(i=>i>=0);
+ const other=same[same.indexOf(index)+step];
+ if(other===undefined)return;
+ [tasks[index],tasks[other]]=[tasks[other],tasks[index]];
+ save(d);render();
+}
 function status(c){return c?.status==="approved"?"완료":c?.status==="rejected"?"다시 하기":"";}
 function renderTask(d,h,day,r){
  const c=check(d,h.id,day),items=shownItems(d,h,day),
@@ -905,7 +942,7 @@ function renderMonthlyCompletion(d,active,anchor){
   '<div class="trend-rows">'+rows+'</div></section></section>';
 }
 function renderChildBonusItems(d){
- const items=d.bonusItems.filter(x=>x.active!==false).sort((a,b)=>b.minutes-a.minutes);
+ const items=d.bonusItems.filter(x=>x.active!==false);
  const chips=items.map(item=>
   '<span class="child-bonus-chip"><span>'+safe(item.title)+'</span>'+
   '<b class="'+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</b></span>'
@@ -983,8 +1020,8 @@ function registration(){
 /* One-time tasks are for the child only; parent and child may register them. */
 function renderOneTimeTasks(d,r){
  const all=Array.isArray(d.oneTimeTasks)?d.oneTimeTasks.filter(t=>t&&t.id&&t.title&&t.dueOn):[];
- const pending=all.filter(t=>!t.completedAt).sort((a,b)=>a.dueOn.localeCompare(b.dueOn));
- const completed=all.filter(t=>t.completedAt).sort((a,b)=>String(b.completedAt).localeCompare(String(a.completedAt))).slice(0,5);
+ const pending=all.filter(t=>!t.completedAt);
+ const completed=all.filter(t=>t.completedAt);
  const card=t=>{
   const done=!!t.completedAt,overdue=!done&&t.dueOn<seoulToday();
   const editable=r==="parent"||t.creatorRole==="child";
@@ -996,6 +1033,7 @@ function renderOneTimeTasks(d,r){
    (overdue?" · 기한 지남":done?" · 완료":"")+'</small></div>'+
    '<div class="one-time-actions">'+
    (canComplete?el(done?"완료 취소":"완료",done?"tiny":"primary","one-time-toggle",attrs):"")+
+   (r==="parent"?reorderButtons("one-time-move","oneTime",t.title,attrs):"")+
    (editable?el("수정","tiny","one-time-edit",attrs)+el("삭제","tiny","one-time-delete",attrs):"")+
    '</div></article>';
  };
@@ -1003,7 +1041,7 @@ function renderOneTimeTasks(d,r){
   '<div class="group-head"><h2>1회성 할 일</h2>'+el("+ 등록","tiny one-time-add","one-time-add")+'</div>'+
   '<div class="one-time-list">'+
    (pending.length?pending.map(card).join(""):'<p class="one-time-empty">진행 중인 할 일이 없습니다.</p>')+
-   (completed.length?'<div class="one-time-subhead">최근 완료</div>'+completed.map(card).join(""):"")+
+   (completed.length?'<div class="one-time-subhead">완료한 할 일</div>'+completed.map(card).join(""):"")+
   '</div></section>';
 }
 function oneTimeEditor(task){
@@ -1074,7 +1112,8 @@ function render(){
     (item.active!==false?el("적용","tiny apply","bonus-apply",'data-id="'+safe(item.id)+'"'):"")+'</article>';
   }).join("")+'</div></section>':"";
  const childBonus=r==="child"?renderChildBonusItems(d):"";
- const content=screen==="today"?taskGroup+renderOneTimeTasks(d,r)+(r==="parent"?bonusGroup:childBonus):
+ const sectionViews={habits:taskGroup,oneTime:renderOneTimeTasks(d,r),bonuses:r==="parent"?bonusGroup:childBonus};
+ const content=screen==="today"?displaySections(d).map(key=>sectionViews[key]||"").join(""):
   screen==="week"?renderWeeklyChecklist(d,active,statsAnchor):
   screen==="month"?renderMonthlyCompletion(d,active,statsAnchor):
   renderHistory(d,statsUnit,statsAnchor);
@@ -1495,6 +1534,7 @@ document.addEventListener("click",e=>{
   else if(act==="complete")submitSimple(hid);
   else if(act==="review")review(hid,t.dataset.status);
   else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
+  else if(act==="bulk-move"&&role()==="parent"){e.preventDefault();e.stopPropagation();moveEditorItem(t);}
   else if(act==="bulk-tab"&&role()==="parent")bulkSetTab(t.dataset.panel);
   else if(act==="bulk-add-task"&&role()==="parent"){
    const list=document.getElementById("bulkTasks");
@@ -1539,6 +1579,7 @@ document.addEventListener("click",e=>{
    bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="one-time-add"){oneTimeEditor(null);}
+  else if(act==="one-time-move"&&role()==="parent"){moveOneTimeTask(hid,Number(t.dataset.step));}
   else if(act==="one-time-edit"){
    const task=(read().oneTimeTasks||[]).find(x=>x.id===hid);
    if(task&&(role()==="parent"||task.creatorRole==="child"))oneTimeEditor(task);
