@@ -1310,6 +1310,7 @@ function render(){
 }
 function open(content){dialogBody.innerHTML=content;if(!dialog.open)dialog.showModal();}
 function close(){
+ if(activeBulkDetail){closeBulkDetail(false);return;}
  const form=document.getElementById("bulkForm");
  if(form?.dataset.dirty==="1"&&!confirm("저장하지 않은 변경사항을 버릴까요?"))return;
  closeSubgroupPicker();
@@ -1328,14 +1329,15 @@ function bulkTaskRow(h){
  const groups=titles.map((title,index)=>({id:"group-"+index,title}));
  const subs=(e.items||[]).map(item=>bulkSubRow(item,groups)).join("");
  const groupsUI=groups.map(g=>bulkGroupRow(g)).join("");
- return '<details name="bulk-tasks" class="bulk-row bulk-task-row" data-created="'+(!h?"1":"0")+'" '+(!h?"open":"")+'>'+
-  '<summary class="bulk-summary">'+dragHandle("tasks",e.title||"새 할 일")+
+ return '<div class="bulk-row bulk-task-row" data-created="'+(!h?"1":"0")+'">'+
+  dragHandle("tasks",e.title||"새 할 일")+
+  '<button type="button" class="bulk-summary" data-action="bulk-open-detail" aria-label="'+safe(e.title||"새 할 일")+' 상세 편집">'+
   '<span class="bulk-summary-left">'+
   '<strong class="bulk-summary-title">'+safe(e.title||"새 할 일")+'</strong>'+
   '<small class="bulk-summary-extra">+'+e.reward_minutes+'분 · '+(e.items.length?e.items.length+"개 하위 항목":"단일 체크")+
   (groups.length?" · "+groups.length+"개 묶음":"")+'</small>'+
   '</span><span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
-  foldChevron()+'</summary>'+
+  '<span class="bulk-edit-caption" aria-hidden="true">편집</span></button>'+
   '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
   '<div class="bulk-inline-fields"><label>할 일 이름<input name="task-title" maxlength="80" value="'+safe(e.title)+'"></label>'+
   '<label>적립 시간 (분)<input name="task-minutes" type="number" min="1" max="180" value="'+e.reward_minutes+'"></label></div>'+
@@ -1346,7 +1348,7 @@ function bulkTaskRow(h){
   '<div class="bulk-subhead bulk-group-header"><strong>하위 묶음</strong>'+el("+ 묶음","tiny","bulk-add-group")+'</div>'+
   '<div class="bulk-groups">'+groupsUI+'</div></div>'+
   '<div class="bulk-row-options"><label class="bulk-active"><input type="checkbox" name="task-active" '+(e.active?"checked":"")+'> 사용하기</label>'+
-  (!h?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></details>';
+  (!h?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></div>';
 }
 function bulkGroupRow(group){
  const id=group?.id||uid(),title=group?.title||"";
@@ -1399,7 +1401,7 @@ function syncSubgroupPickerLabel(select){
  trigger.setAttribute("aria-label","하위 묶음: "+label+". 변경하기");
 }
 function closeSubgroupPicker(restoreFocus=false){
- const popup=dialog.querySelector(".subgroup-picker-overlay");
+ const popup=(bulkDetailDialog.open?bulkDetailDialog:dialog).querySelector(".subgroup-picker-overlay");
  popup?.remove();
  if(activeSubgroupPicker?.trigger){
   activeSubgroupPicker.trigger.setAttribute("aria-expanded","false");
@@ -1425,10 +1427,10 @@ function openSubgroupPicker(trigger){
     (option.value===selected?'<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 7"/></svg>':"")+
     '</button>').join("")+'</div>'+
   '</div></div>';
- dialog.insertAdjacentHTML("beforeend",picker);
+ (bulkDetailDialog.open?bulkDetailDialog:dialog).insertAdjacentHTML("beforeend",picker);
  activeSubgroupPicker={select,trigger};
  trigger.setAttribute("aria-expanded","true");
- dialog.querySelector(".subgroup-picker-option.selected")?.focus();
+ (bulkDetailDialog.open?bulkDetailDialog:dialog).querySelector(".subgroup-picker-option.selected")?.focus();
 }
 function selectSubgroupPicker(value){
  const picker=activeSubgroupPicker;
@@ -1443,13 +1445,14 @@ function selectSubgroupPicker(value){
 
 function bulkBonusRow(item){
  const b=item||{id:"",title:"",minutes:10,active:true};
- return '<details name="bulk-bonuses" class="bulk-row bulk-bonus-row" data-created="'+(!item?"1":"0")+'" '+(!item?"open":"")+'>'+
-  '<summary class="bulk-summary">'+dragHandle("bonuses",b.title||"새 상벌")+
+ return '<div class="bulk-row bulk-bonus-row" data-created="'+(!item?"1":"0")+'">'+
+  dragHandle("bonuses",b.title||"새 상벌")+
+  '<button type="button" class="bulk-summary" data-action="bulk-open-detail" aria-label="'+safe(b.title||"새 상벌")+' 상세 편집">'+
   '<span class="bulk-summary-left">'+
   '<strong class="bulk-summary-title">'+safe(b.title||"새 상벌")+'</strong>'+
   '<small class="bulk-summary-extra '+(b.minutes>0?"positive":"negative")+'">'+(b.minutes>0?"+":"")+b.minutes+'분</small>'+
   '</span><span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
-  foldChevron()+'</summary>'+
+  '<span class="bulk-edit-caption" aria-hidden="true">편집</span></button>'+
   '<div class="bulk-panel"><input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
   '<label>상벌 이름<input name="bonus-title" maxlength="80" value="'+safe(b.title)+'"></label>'+
   '<div class="bulk-inline-fields"><label>구분<select name="bonus-type">'+
@@ -1457,8 +1460,61 @@ function bulkBonusRow(item){
   '<option value="subtract" '+(b.minutes<0?"selected":"")+'>벌점 (−)</option></select></label>'+
   '<label>시간 (분)<input name="bonus-minutes" type="number" min="1" max="300" value="'+Math.abs(b.minutes)+'"></label></div>'+
   '<div class="bulk-row-options"><label class="bulk-active"><input type="checkbox" name="bonus-active" '+(b.active!==false?"checked":"")+'> 사용하기</label>'+
-  (!item?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></details>';
+  (!item?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></div>';
 }
+
+/* Keep item ordering in the primary editor; edit the real fields in one
+   secondary modal so cancelling cannot modify the pending list. */
+let activeBulkDetail=null;
+const bulkDetailDialog=document.createElement("dialog");
+bulkDetailDialog.id="bulkDetailModal";
+bulkDetailDialog.className="bulk-detail-dialog";
+document.body.appendChild(bulkDetailDialog);
+function openBulkDetail(row,removeOnCancel=false){
+ requireParent();
+ if(!row?.classList.contains("bulk-row")||activeBulkDetail)return;
+ const slot=document.createElement("div");
+ slot.className="bulk-detail-slot";
+ const previous=row.cloneNode(true);
+ row.parentElement.insertBefore(slot,row);
+ const isTask=row.classList.contains("bulk-task-row");
+ const typeName=isTask?"매일 할 일":"상벌";
+ bulkDetailDialog.innerHTML=
+  '<div class="bulk-detail-head"><div><small>'+typeName+'</small><h2>상세 편집</h2></div>'+
+  '<button type="button" class="bulk-detail-close" data-action="bulk-detail-cancel" aria-label="상세 편집 취소">×</button></div>'+
+  '<div class="bulk-detail-scroll bulk-form"><div class="bulk-detail-content"></div></div>'+
+  '<div class="bulk-detail-footer">'+
+   el("취소","ghost","bulk-detail-cancel")+
+   el("목록에 반영","primary","bulk-detail-accept")+'</div>';
+ bulkDetailDialog.querySelector(".bulk-detail-content").appendChild(row);
+ activeBulkDetail={row,slot,previous,removeOnCancel};
+ bulkDetailDialog.showModal();
+ row.querySelector(isTask?'[name="task-title"]':'[name="bonus-title"]')?.focus({preventScroll:true});
+}
+function closeBulkDetail(accept=false){
+ const detail=activeBulkDetail;
+ if(!detail)return;
+ closeSubgroupPicker();
+ const {row,slot,previous,removeOnCancel}=detail;
+ if(accept){
+  if(row.classList.contains("bulk-task-row"))bulkRefreshGroups(row);
+  bulkUpdatePreview(row);
+  slot.replaceWith(row);
+ }else if(removeOnCancel)slot.remove();
+ else slot.replaceWith(previous);
+ activeBulkDetail=null;
+ if(accept)bulkDirty(document.getElementById("bulkForm"));
+ if(bulkDetailDialog.open)bulkDetailDialog.close();
+}
+bulkDetailDialog.addEventListener("cancel",event=>{
+ event.preventDefault();
+ if(activeSubgroupPicker){closeSubgroupPicker(true);return;}
+ closeBulkDetail(false);
+});
+bulkDetailDialog.addEventListener("click",event=>{
+ if(event.target===bulkDetailDialog)closeBulkDetail(false);
+});
+bulkDetailDialog.addEventListener("close",()=>{if(activeBulkDetail)closeBulkDetail(false);});
 function bulkEditor(initialTab="tasks"){
  requireParent();
  closeSubgroupPicker();
@@ -1497,7 +1553,7 @@ function bulkSetTab(name){
  });
 }
 function bulkDirty(form){
- if(form)form.dataset.dirty="1";
+ if(form&&!activeBulkDetail)form.dataset.dirty="1";
 }
 function bulkSyncRows(form){
  if(!form)return;
@@ -1776,7 +1832,8 @@ document.addEventListener("keydown",event=>{
  if(event.key==="Escape"){
   event.preventDefault();event.stopImmediatePropagation();closeSubgroupPicker(true);return;
  }
- const focusables=Array.from(dialog.querySelectorAll(".subgroup-picker-panel button"));
+ const pickerHost=bulkDetailDialog.open?bulkDetailDialog:dialog;
+ const focusables=Array.from(pickerHost.querySelectorAll(".subgroup-picker-panel button"));
  if(event.key==="Tab"&&focusables.length){
   const first=focusables[0],last=focusables[focusables.length-1];
   if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
@@ -1784,7 +1841,7 @@ document.addEventListener("keydown",event=>{
   return;
  }
  if(!["ArrowDown","ArrowUp"].includes(event.key))return;
- const options=Array.from(dialog.querySelectorAll(".subgroup-picker-option"));
+ const options=Array.from(pickerHost.querySelectorAll(".subgroup-picker-option"));
  const i=options.indexOf(document.activeElement);
  if(i>=0&&options.length){
   event.preventDefault();options[(i+(event.key==="ArrowDown"?1:-1)+options.length)%options.length].focus();
@@ -1824,20 +1881,21 @@ document.addEventListener("click",e=>{
   else if(act==="review")review(hid,t.dataset.status);
   else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
   else if(act==="bulk-tab"&&role()==="parent")bulkSetTab(t.dataset.panel);
+  else if(act==="bulk-open-detail"&&role()==="parent"){e.preventDefault();openBulkDetail(t.closest(".bulk-row"));}
+  else if(act==="bulk-detail-accept"&&role()==="parent")closeBulkDetail(true);
+  else if(act==="bulk-detail-cancel"&&role()==="parent")closeBulkDetail(false);
   else if(act==="bulk-pick-group"&&role()==="parent"){e.preventDefault();openSubgroupPicker(t);}
   else if(act==="bulk-pick-close"){closeSubgroupPicker(true);}
   else if(act==="bulk-pick-value"&&role()==="parent"){selectSubgroupPicker(t.dataset.value||"");}
   else if(act==="bulk-add-task"&&role()==="parent"){
    const list=document.getElementById("bulkTasks");
    list?.insertAdjacentHTML("beforeend",bulkTaskRow(null));
-   const row=list?.lastElementChild;if(row){row.open=true;row.querySelector('[name="task-title"]')?.focus();}
-   bulkDirty(document.getElementById("bulkForm"));
+   const row=list?.lastElementChild;if(row)openBulkDetail(row,true);
   }
   else if(act==="bulk-add-bonus"&&role()==="parent"){
    const list=document.getElementById("bulkBonuses");
    list?.insertAdjacentHTML("beforeend",bulkBonusRow(null));
-   const row=list?.lastElementChild;if(row){row.open=true;row.querySelector('[name="bonus-title"]')?.focus();}
-   bulkDirty(document.getElementById("bulkForm"));
+   const row=list?.lastElementChild;if(row)openBulkDetail(row,true);
   }
   else if(act==="bulk-add-sub"&&role()==="parent"){
    const row=t.closest(".bulk-task-row"),list=row?.querySelector(".bulk-subitems");
@@ -1916,6 +1974,7 @@ document.addEventListener("submit",e=>{
    return;
   }
   if(f.id==="bulkForm"){
+   if(activeBulkDetail)throw Error("상세 편집을 먼저 완료해주세요.");
    saveBulkEditor(f);f.dataset.dirty="0";close();
   }
   if(f.id==="bonusApplyForm"){
@@ -1941,6 +2000,7 @@ document.addEventListener("change",e=>{
  bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
 });
 dialog.addEventListener("cancel",e=>{
+ if(activeBulkDetail){e.preventDefault();closeBulkDetail(false);return;}
  if(activeSubgroupPicker){
   e.preventDefault();
   closeSubgroupPicker(true);
