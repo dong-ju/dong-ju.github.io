@@ -1336,8 +1336,7 @@ function bulkTaskRow(h){
   (groups.length?" · "+groups.length+"개 묶음":"")+'</small>'+
   '</span><span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
   foldChevron()+'</summary>'+
-  '<div class="bulk-panel"><div class="bulk-panel-context"><span>매일 할 일</span><strong>'+safe(e.title||"새 할 일")+'</strong></div>'+
-  '<input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
+  '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
   '<div class="bulk-inline-fields"><label>할 일 이름<input name="task-title" maxlength="80" value="'+safe(e.title)+'"></label>'+
   '<label>적립 시간 (분)<input name="task-minutes" type="number" min="1" max="180" value="'+e.reward_minutes+'"></label></div>'+
   '<div class="bulk-subsection"><div class="bulk-subhead"><strong>하위 항목</strong>'+
@@ -1451,8 +1450,7 @@ function bulkBonusRow(item){
   '<small class="bulk-summary-extra '+(b.minutes>0?"positive":"negative")+'">'+(b.minutes>0?"+":"")+b.minutes+'분</small>'+
   '</span><span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
   foldChevron()+'</summary>'+
-  '<div class="bulk-panel"><div class="bulk-panel-context"><span>상벌</span><strong>'+safe(b.title||"새 상벌")+'</strong></div>'+
-  '<input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
+  '<div class="bulk-panel"><input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
   '<label>상벌 이름<input name="bonus-title" maxlength="80" value="'+safe(b.title)+'"></label>'+
   '<div class="bulk-inline-fields"><label>구분<select name="bonus-type">'+
   '<option value="add" '+(b.minutes>0?"selected":"")+'>상점 (+)</option>'+
@@ -1518,8 +1516,6 @@ function bulkUpdatePreview(row){
   extra=row.querySelector(".bulk-summary-extra"),
   inactive=row.querySelector(".bulk-summary-status");
  if(label)label.textContent=title;
- const context=row.querySelector(".bulk-panel-context strong");
- if(context)context.textContent=title;
  if(extra){
   extra.textContent=sign+amount+"분"+(task?" · "+(count?count+"개 하위 항목":"단일 체크")+(groups?" · "+groups+"개 묶음":""):"");
   extra.classList.toggle("positive",sign==="+");
