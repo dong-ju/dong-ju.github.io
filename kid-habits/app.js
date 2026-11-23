@@ -1153,7 +1153,7 @@ function renderChildProgress(d,active,day){
 }
 function header(r){
  const mark='<span class="brand-check" role="img" aria-label="좋은습관">'+
-  '<img src="/kid-habits/good-habit-icon-transparent-512.png?v=44" width="40" height="40" alt="" aria-hidden="true" draggable="false"></span>';
+  '<img src="/kid-habits/good-habit-icon-transparent-512.png?v=45" width="40" height="40" alt="" aria-hidden="true" draggable="false"></span>';
  const syncLabel=!syncOnline?"오프라인 · 마지막 저장 내용":outstandingWrites?"DB 저장 중":
   lastSyncStatus==="cached"?"마지막 저장 내용 · 최신 확인 중":
   realtimeConnected?"실시간 동기화":"DB 동기화됨";
@@ -2014,8 +2014,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v44")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v44","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v45")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v45","1");
   window.location.reload();
  });
 }

@@ -1,12 +1,14 @@
-const CACHE="kid-habits-good-habit-v44",HOME="/kid-habits/";
+const CACHE="kid-habits-good-habit-v45",HOME="/kid-habits/";
 const APP_ASSETS=[
  HOME,
- HOME+"app.js?v=44",
- HOME+"style.css?v=44",
+ HOME+"app.js?v=45",
+ HOME+"style.css?v=45",
  HOME+"app.js",
  HOME+"style.css",
- HOME+"good-habit-icon-transparent-512.png?v=44",
- HOME+"good-habit-icon-transparent-192.png?v=44"
+ HOME+"good-habit-icon-transparent-512.png?v=45",
+ HOME+"good-habit-icon-transparent-192.png?v=45",
+ HOME+"good-habit-icon-maskable-512-v45.png",
+ HOME+"manifest.webmanifest"
 ];
 self.addEventListener("install",event=>event.waitUntil(
  caches.open(CACHE).then(cache=>cache.addAll(APP_ASSETS)).then(()=>self.skipWaiting())
