@@ -1260,6 +1260,7 @@ function open(content){dialogBody.innerHTML=content;if(!dialog.open)dialog.showM
 function close(){
  const form=document.getElementById("bulkForm");
  if(form?.dataset.dirty==="1"&&!confirm("저장하지 않은 변경사항을 버릴까요?"))return;
+ closeSubgroupPicker();
  dialog.close();
 }
 function notify(msg){const el=document.getElementById("toast");el.textContent=msg;el.hidden=false;clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>el.hidden=true,2400);}
@@ -1304,13 +1305,17 @@ function bulkGroupRow(group){
 function bulkSubRow(item,groups=[]){
  const id=typeof item==="object"&&item?.id||"",title=typeof item==="string"?item:item?.title||"";
  const group=typeof item==="object"?String(item?.group||"").trim():"";
- const choice=groups.find(x=>x.title===group)?.id||"";
+ const selected=groups.find(x=>x.title===group),choice=selected?.id||"";
  return '<div class="bulk-subitem" data-item-id="'+safe(id)+'">'+
   '<input type="text" name="sub-title" aria-label="하위 항목 이름" maxlength="48" placeholder="하위 항목 이름" value="'+safe(title)+'">'+
-  '<select name="sub-group" aria-label="하위 항목 소속 묶음">'+
+  '<select name="sub-group" class="subgroup-native-select" aria-hidden="true" tabindex="-1">'+
   '<option value="">필수</option>'+
   groups.map(g=>'<option value="'+safe(g.id)+'" '+(g.id===choice?"selected":"")+'>'+safe(g.title)+'</option>').join("")+
   '</select>'+
+  '<button type="button" class="subgroup-picker-trigger" data-action="bulk-pick-group" aria-haspopup="dialog" aria-expanded="false" title="'+safe(selected?.title||"필수")+'">'+
+   '<span class="subgroup-picker-value">'+safe(selected?.title||"필수")+'</span>'+
+   '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'+
+  '</button>'+
   '<span class="bulk-row-control-group">'+dragHandle("subitems",title||"하위 항목")+
   el("×","tiny muted","bulk-remove-sub",'aria-label="하위 항목 삭제"')+'</span></div>';
 }
@@ -1328,8 +1333,61 @@ function bulkRefreshGroups(row){
   select.innerHTML='<option value="">필수</option>'+groups.map(g=>
    '<option value="'+safe(g.id)+'">'+safe(g.title||"이름 없는 묶음")+'</option>').join("");
   select.value=groups.some(g=>g.id===selected)?selected:"";
+  syncSubgroupPickerLabel(select);
  });
 }
+let activeSubgroupPicker=null;
+function syncSubgroupPickerLabel(select){
+ const trigger=select?.closest(".bulk-subitem")?.querySelector(".subgroup-picker-trigger");
+ if(!trigger)return;
+ const label=select.selectedOptions?.[0]?.textContent||"필수";
+ trigger.querySelector(".subgroup-picker-value").textContent=label;
+ trigger.title=label;
+ trigger.setAttribute("aria-label","하위 묶음: "+label+". 변경하기");
+}
+function closeSubgroupPicker(restoreFocus=false){
+ const popup=dialog.querySelector(".subgroup-picker-overlay");
+ popup?.remove();
+ if(activeSubgroupPicker?.trigger){
+  activeSubgroupPicker.trigger.setAttribute("aria-expanded","false");
+  if(restoreFocus&&activeSubgroupPicker.trigger.isConnected)activeSubgroupPicker.trigger.focus();
+ }
+ activeSubgroupPicker=null;
+}
+function openSubgroupPicker(trigger){
+ requireParent();
+ closeSubgroupPicker();
+ const row=trigger.closest(".bulk-subitem"),select=row?.querySelector('[name="sub-group"]');
+ if(!select)return;
+ const options=Array.from(select.options);
+ const selected=select.value;
+ const picker='<div class="subgroup-picker-overlay" data-subgroup-backdrop="true">'+
+  '<div class="subgroup-picker-panel" role="dialog" aria-modal="true" aria-label="하위 항목 묶음 선택">'+
+   '<div class="subgroup-picker-head"><strong>묶음 선택</strong>'+
+    '<button type="button" class="subgroup-picker-close" data-action="bulk-pick-close" aria-label="닫기">×</button></div>'+
+   '<div class="subgroup-picker-options">'+options.map(option=>
+    '<button type="button" class="subgroup-picker-option '+(option.value===selected?"selected":"")+
+    '" data-action="bulk-pick-value" data-value="'+safe(option.value)+'" aria-pressed="'+(option.value===selected?"true":"false")+'">'+
+    '<span class="subgroup-picker-option-name">'+safe(option.textContent)+'</span>'+
+    (option.value===selected?'<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 7"/></svg>':"")+
+    '</button>').join("")+'</div>'+
+  '</div></div>';
+ dialog.insertAdjacentHTML("beforeend",picker);
+ activeSubgroupPicker={select,trigger};
+ trigger.setAttribute("aria-expanded","true");
+ dialog.querySelector(".subgroup-picker-option.selected")?.focus();
+}
+function selectSubgroupPicker(value){
+ const picker=activeSubgroupPicker;
+ if(!picker)return;
+ const allowed=Array.from(picker.select.options).some(x=>x.value===value);
+ if(!allowed)return;
+ picker.select.value=value;
+ syncSubgroupPickerLabel(picker.select);
+ bulkDirty(document.getElementById("bulkForm"));
+ closeSubgroupPicker(true);
+}
+
 function bulkBonusRow(item){
  const b=item||{id:"",title:"",minutes:10,active:true};
  return '<details name="bulk-bonuses" class="bulk-row bulk-bonus-row" data-created="'+(!item?"1":"0")+'" '+(!item?"open":"")+'>'+
@@ -1350,6 +1408,7 @@ function bulkBonusRow(item){
 }
 function bulkEditor(){
  requireParent();
+ closeSubgroupPicker();
  const d=read(),habits=d.habits.filter(h=>!h.moved_to_parent_bonus).sort((a,b)=>a.sort_order-b.sort_order);
  open('<form id="bulkForm" class="form bulk-form" data-dirty="0">'+
    '<div class="bulk-editor-head"><h2>항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
@@ -1366,6 +1425,7 @@ function bulkEditor(){
    '<button type="submit" class="primary">변경사항 저장</button></div></form>');
 }
 function bulkSetTab(name){
+ closeSubgroupPicker();
  const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses"].includes(name))return;
  form.querySelectorAll("[data-bulk-panel]").forEach(panel=>{
   panel.hidden=panel.dataset.bulkPanel!==name;
@@ -1646,10 +1706,24 @@ document.addEventListener("pointermove",moveRowDrag,{passive:false});
 document.addEventListener("pointerup",event=>finishRowDrag(event));
 document.addEventListener("pointercancel",event=>finishRowDrag(event,true));
 document.addEventListener("keydown",keyboardRowDrag);
+document.addEventListener("keydown",event=>{
+ if(!activeSubgroupPicker)return;
+ if(event.key==="Escape"){
+  event.preventDefault();event.stopImmediatePropagation();closeSubgroupPicker(true);return;
+ }
+ if(!["ArrowDown","ArrowUp"].includes(event.key))return;
+ const options=Array.from(dialog.querySelectorAll(".subgroup-picker-option"));
+ const i=options.indexOf(document.activeElement);
+ if(i>=0&&options.length){
+  event.preventDefault();options[(i+(event.key==="ArrowDown"?1:-1)+options.length)%options.length].focus();
+ }
+},true);
+dialog.addEventListener("close",()=>closeSubgroupPicker());
 document.addEventListener("click",event=>{
  if(event.target.closest?.(".drag-handle")){event.preventDefault();event.stopPropagation();}
 },true);
 document.addEventListener("click",e=>{
+ if(e.target.classList?.contains("subgroup-picker-overlay")){closeSubgroupPicker(true);return;}
  const t=e.target.closest("[data-action]");if(!t)return;
  const act=t.dataset.action,hid=t.dataset.id;
  try{
@@ -1678,6 +1752,9 @@ document.addEventListener("click",e=>{
   else if(act==="review")review(hid,t.dataset.status);
   else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
   else if(act==="bulk-tab"&&role()==="parent")bulkSetTab(t.dataset.panel);
+  else if(act==="bulk-pick-group"&&role()==="parent"){e.preventDefault();openSubgroupPicker(t);}
+  else if(act==="bulk-pick-close"){closeSubgroupPicker(true);}
+  else if(act==="bulk-pick-value"&&role()==="parent"){selectSubgroupPicker(t.dataset.value||"");}
   else if(act==="bulk-add-task"&&role()==="parent"){
    const list=document.getElementById("bulkTasks");
    list?.insertAdjacentHTML("beforeend",bulkTaskRow(null));
@@ -1704,6 +1781,7 @@ document.addEventListener("click",e=>{
    bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="bulk-remove-group"&&role()==="parent"){
+   closeSubgroupPicker();
    const row=t.closest(".bulk-task-row"),entry=t.closest(".bulk-group-row"),id=entry?.dataset.groupId;
    row?.querySelectorAll('.bulk-subitem [name="sub-group"]').forEach(sel=>{
     if(sel.value===id)sel.value="";
@@ -1712,6 +1790,7 @@ document.addEventListener("click",e=>{
    bulkRefreshGroups(row);bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="bulk-remove-sub"&&role()==="parent"){
+   closeSubgroupPicker();
    const row=t.closest(".bulk-task-row");
    t.closest(".bulk-subitem")?.remove();
    bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
