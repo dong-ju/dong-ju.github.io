@@ -942,11 +942,6 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
 .setup-pin-label{margin-top:3px}
 .setup-note{margin:-3px 0 0;font-size:12px;line-height:1.5;color:#7b877e}
 .view-registration .pin button.primary{width:100%;min-height:47px;font-size:15px}
-.parent-device-settings{display:grid;gap:9px;padding:12px 0;border-block:1px solid #e7ece8}
-.parent-device-settings>strong{font-size:14px;color:#324f3c}
-.parent-device-settings p{margin:0;color:#728374;font-size:13px}
-.parent-device-settings>small{line-height:1.5;color:#87958b;font-size:12px}
-.parent-device-settings button{width:100%;min-height:43px}
 @media(max-width:420px){
  .view-registration{width:calc(100% - 24px)}
  .view-registration .pin{padding:18px}
