@@ -1344,10 +1344,10 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 .bulk-form .bulk-subitem .bulk-row-control-group .tiny{min-width:30px;min-height:38px;padding:5px 7px}
 .bulk-form .bulk-subitem .bulk-row-control-group .drag-handle{width:30px;min-width:30px}
 .bulk-section-order-row{
- display:flex;align-items:center;justify-content:space-between;gap:12px;
- padding:12px 14px;border:1px solid #dfe8e2;border-radius:11px;background:#fff;
+ display:flex;align-items:center;justify-content:flex-start;gap:9px;
+ padding:7px 2px;border-bottom:1px solid #e9eeea;background:transparent;
 }
-.bulk-section-order-row strong{font-size:14px;color:#355443;min-width:0}
+.bulk-section-order-row strong{font-size:14px;color:#355443;min-width:0;text-align:left}
 .bulk-form .bulk-tabs .bulk-tab{min-width:0;padding:11px 8px;font-size:13px;white-space:nowrap}
 .one-time-drag-group{display:flex;flex-direction:column;gap:8px;min-width:0}
 .one-time-actions .drag-handle{margin-right:auto}
@@ -1965,6 +1965,8 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 #modal .bulk-form .bulk-section-order-row{
  display:flex;
  align-items:center;
+ justify-content:flex-start;
+ text-align:left;
  gap:9px;
  width:100%;
  min-width:0;
@@ -1990,7 +1992,10 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 }
 #modal .bulk-form .bulk-section-order-row strong{
  display:block;
+ flex:1 1 auto;
  min-width:0;
+ margin:0;
+ text-align:left;
  font-size:14px;
  font-weight:700;
  line-height:1.5;
