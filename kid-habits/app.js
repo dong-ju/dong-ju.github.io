@@ -134,13 +134,15 @@ async function loadFromDatabase(force=false){
  syncReading=true;
  try{
   let result=await syncRequest("state");
+  const previousState=serverState,previousRole=role();
   serverDevice=result.device;
   if(result.state){
    syncOnline=true;
    if(!serverReady||result.revision!==serverRevision||force){
     serverState=result.state;lastConfirmedState=copyState(result.state);
     serverRevision=result.revision;serverReady=true;lastSyncStatus="fresh";
-    persistConfirmedState();render();
+    persistConfirmedState();
+    if(!refreshChildCheckSync(previousState,result.state,previousRole))render();
    }else{
     lastSyncStatus="fresh";refreshSyncIndicator();
    }
@@ -222,7 +224,8 @@ function optimisticChildChange(action,hid,itemId){
    }));
   }else if(existing?.status==="pending")d.checks=d.checks.filter(x=>x!==existing);
  }
- serverState=d;render();
+ serverState=d;
+ if(!refreshChildCheckView(d))render();
 }
 async function flushChildActionQueue(){
  if(childActionBusy||queuedChildActions.length===0)return;
@@ -481,7 +484,7 @@ function toggleItem(hid,itemId){
   signalParent(h.title);
  }
  else if(existing&&existing.status==="pending")d.checks=d.checks.filter(x=>x!==existing);
- save(d);render();
+ save(d);if(!refreshChildCheckView(d))render();
 }
 function submitSimple(hid){
  if(role()!=="child")return;
@@ -715,10 +718,82 @@ function renderTask(d,h,day,r){
  let actionsBottom="";
  if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+'</div>';
  else if(isParent&&complete&&sameActionDay(c?.reviewed_at))actionsBottom='<div class="task-foot">'+el("완료 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
- return '<article class="task '+(complete?"task-done":pending?"task-checked":c?.status==="rejected"?"task-retry":"")+'"><div class="task-top">'+titleRow+
+ return '<article data-habit-id="'+safe(h.id)+'" class="task '+(complete?"task-done":pending?"task-checked":c?.status==="rejected"?"task-retry":"")+'"><div class="task-top">'+titleRow+
   '<div class="right">'+(state?'<span class="state '+(complete?"done":"")+'">'+state+'</span>':'')+
   '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
   detail+actionsBottom+'</article>';
+}
+/* Keep child checkboxes and parent task cards mounted during a check. */
+function refreshChildCheckView(d){
+ const view=app.querySelector(".view-child.screen-today");
+ if(!view||role()!=="child")return false;
+ const today=seoulToday();
+ const active=d.habits.filter(h=>h.active).sort((a,b)=>a.sort_order-b.sort_order);
+ const nodes=Array.from(view.querySelectorAll(".tasks .task[data-habit-id]"));
+ if(nodes.length!==active.length)return false;
+ const prepared=[];
+ for(const h of active){
+  const card=nodes.find(node=>node.dataset.habitId===h.id);
+  if(!card)return false;
+  const c=check(d,h.id,today),approved=c?.status==="approved";
+  if(approved){
+   if(!card.classList.contains("task-done"))return false;
+   prepared.push({card,approved:true});
+   continue;
+  }
+  const options=Array.from(card.querySelectorAll('button.subitem[data-action="toggle"]'));
+  if((h.items||[]).length!==options.length)return false;
+  const groups=taskUnits(h).filter(unit=>!!unit.title);
+  const groupNodes=Array.from(card.querySelectorAll(".subtasks .subgroup"));
+  if(groups.length!==groupNodes.length)return false;
+  prepared.push({h,card,c,options,groups,groupNodes,done:new Set(checked(d,h.id,today))});
+ }
+ const progress=view.querySelector(".child-progress");
+ const progressValue=progress?.querySelector(".child-progress-top strong");
+ const progressRate=progress?.querySelector(".child-progress-top > span");
+ const progressTrack=progress?.querySelector(".child-progress-track");
+ const progressBar=progressTrack?.querySelector("span");
+ const progressCounts=progress?.querySelectorAll(".child-progress-states b");
+ if(!progressValue||!progressRate||!progressTrack||!progressBar||progressCounts?.length!==2)return false;
+ const setDot=(node,on)=>{
+  if(!node)return;
+  node.classList.toggle("on",on);
+  node.textContent=on?"✓":"";
+ };
+ prepared.forEach(entry=>{
+  if(entry.approved)return;
+  const {h,card,c,options,groups,groupNodes,done}=entry;
+  const pending=c?.status==="pending",complete=pending||taskUnitsDone(h,done);
+  card.classList.toggle("task-checked",pending);
+  card.classList.toggle("task-retry",c?.status==="rejected");
+  card.classList.remove("task-done");
+  setDot(card.querySelector(".task-top .task-label .dot"),complete);
+  card.querySelector(".task-click")?.setAttribute("aria-pressed",String(complete));
+  options.forEach(button=>{
+   const marked=done.has(button.dataset.item);
+   button.setAttribute("aria-pressed",String(marked));
+   setDot(button.querySelector(".dot"),marked);
+  });
+  groups.forEach((group,index)=>{
+   groupNodes[index].classList.toggle("subgroup-done",group.items.some(item=>done.has(item.id)));
+  });
+ });
+ const {done,total,confirmed,waiting,percent}=childProgressNumbers(d,active,today);
+ progressValue.innerHTML=done+' <span>/ '+total+'</span>';
+ progressRate.textContent=percent+"%";
+ progressTrack.setAttribute("aria-valuemax",String(total));
+ progressTrack.setAttribute("aria-valuenow",String(done));
+ progressBar.style.width=percent+"%";
+ progressCounts[0].textContent=String(confirmed);
+ progressCounts[1].textContent=String(waiting);
+ return true;
+}
+function refreshChildCheckSync(before,after,previousRole){
+ if(!before||previousRole!=="child"||role()!=="child"||screen!=="today")return false;
+ // Any other structural change must still be rendered normally.
+ const structural=["habits","bonusItems","oneTimeTasks","ledger","displaySections","started_on","studyDays"];
+ if(structural.some(key=>JSON.stringify(before[key])!==JSON.stringify(after[key])))return false;
+ return refreshChildCheckView(after);
 }
 function archivedHabitsOn(d,day){
  return d.habits.filter(h=>h.moved_to_parent_bonus&&h.was_active_before_move&&
@@ -1032,7 +1107,7 @@ function renderChildBonusItems(d){
   '<div class="child-bonus-line"><strong>상벌 보너스</strong>'+
   '<div class="child-bonus-inline">'+(chips||'<span class="child-bonus-empty">등록된 항목 없음</span>')+'</div></div></section>';
 }
-function renderChildProgress(d,active,day){
+function childProgressNumbers(d,active,day){
  let done=0,total=0,confirmed=0,waiting=0;
  active.forEach(h=>{
   const items=shownItems(d,h,day),c=check(d,h.id,day),
@@ -1046,7 +1121,10 @@ function renderChildProgress(d,active,day){
   if(status==="approved")confirmed++;
   if(status==="pending")waiting++;
  });
- const percent=total?Math.round(done/total*100):0;
+ return {done,total,confirmed,waiting,percent:total?Math.round(done/total*100):0};
+}
+function renderChildProgress(d,active,day){
+ const {done,total,confirmed,waiting,percent}=childProgressNumbers(d,active,day);
  const weekly=scoreTotals(d,period("week",day).start,period("week",day).end);
  const recent=d.ledger.filter(l=>l.kind!=="spend").slice(0,4).map(l=>{
   const num=Number(l.minutes)||0,
