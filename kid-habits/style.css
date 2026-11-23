@@ -2414,3 +2414,22 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  .task-label .task-name{
  color:#23322c;
 }
+
+/* v46: completed daily tasks remain expanded, with a restrained gold outline.
+   Pending-review tasks keep their existing neutral styling. */
+.wrap:is(.view-parent,.view-child).screen-today
+ .habit-card.task.task-has-subitems.task-done{
+ border:1px solid #d6b16a!important;
+ background:#fffefa!important;
+ box-shadow:0 0 0 1px rgba(196,146,51,.13)!important;
+}
+.wrap:is(.view-parent,.view-child).screen-today
+ .habit-card.task.task-has-subitems.task-done .state.done{
+ color:#866018;
+ background:#fbf1d9;
+}
+.view-child.screen-today .habit-card.task-has-subitems.task-done
+ .subitem.selectable:disabled{
+ opacity:1;
+ cursor:default;
+}
