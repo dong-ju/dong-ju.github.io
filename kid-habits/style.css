@@ -2093,16 +2093,29 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 
 /* Edition v37 — list stays sortable, each item opens a separate detail modal. */
 #modal .bulk-form .bulk-list{
- display:flex;flex-direction:column;gap:8px;
+ display:flex;
+ flex-direction:column;
+ gap:0;
 }
 #modal .bulk-form .bulk-list>.bulk-row{
  display:flex!important;
- align-items:center;gap:6px;
+ align-items:center;
+ gap:7px;
  min-width:0;
- min-height:62px;
- margin:0;padding:6px 10px;
- border:1px solid #e1e9e3;border-radius:11px;
- background:#fff;box-shadow:none;
+ min-height:58px;
+ margin:0;
+ padding:7px 2px;
+ border:0;
+ border-bottom:1px solid #e9eeea;
+ border-radius:0;
+ background:transparent;
+ box-shadow:none;
+}
+#modal .bulk-form .bulk-list>.bulk-row:last-child{
+ border-bottom:0;
+}
+#modal .bulk-form .bulk-list>.bulk-row:focus-within{
+ background:#f9fbf9;
 }
 #modal .bulk-form .bulk-list>.bulk-row>.drag-handle{
  display:inline-flex!important;
@@ -2121,8 +2134,11 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  color:inherit;text-align:left;
  font:inherit;cursor:pointer;
 }
+#modal .bulk-form .bulk-list>.bulk-row>.bulk-summary:hover{
+ background:#f8faf8;
+}
 #modal .bulk-form .bulk-list>.bulk-row>.bulk-summary:active{
- background:#f4f7f4;
+ background:#eff5f0;
 }
 #modal .bulk-form .bulk-list>.bulk-row>.bulk-summary:focus-visible{
  outline:2px solid #3b8158;outline-offset:1px;
@@ -2205,7 +2221,7 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  #bulkDetailModal .bulk-detail-head{padding:16px 14px 17px}
  #bulkDetailModal .bulk-detail-scroll{padding:20px 13px 15px}
  #bulkDetailModal .bulk-detail-footer{padding:11px 13px 14px}
- #modal .bulk-form .bulk-list>.bulk-row{padding:5px 8px}
+ #modal .bulk-form .bulk-list>.bulk-row{padding:6px 2px}
  /* Parent and child share the same phone-width and card spacing. */
  .wrap.view-parent,.wrap.view-child{
   width:calc(100% - 24px);
