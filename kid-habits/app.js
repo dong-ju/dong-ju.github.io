@@ -1134,30 +1134,33 @@ function registration(){
  '</section></main>';
 }
 
-/* One-time tasks are for the child only; parent and child may register them. */
+/* Dated tasks share the daily card design but never grant reward minutes. */
 function renderOneTimeTasks(d,r){
  const all=Array.isArray(d.oneTimeTasks)?d.oneTimeTasks.filter(t=>t&&t.id&&t.title&&t.dueOn):[];
- const pending=all.filter(t=>!t.completedAt);
- const completed=all.filter(t=>t.completedAt);
+ const pending=all.filter(t=>!t.completedAt),completed=all.filter(t=>t.completedAt);
+ const isParent=r==="parent";
  const card=t=>{
   const done=!!t.completedAt,overdue=!done&&t.dueOn<seoulToday();
-  const editable=r==="parent"||t.creatorRole==="child";
+  const editable=isParent||t.creatorRole==="child";
   const canComplete=r==="child"&&serverDevice?.role==="child";
   const attrs='data-id="'+safe(t.id)+'"';
-  return '<article data-id="'+safe(t.id)+'" class="one-time-item '+(done?"is-done":overdue?"is-overdue":"")+'">'+
-   (r==="parent"?dragHandle("oneTime",t.title):"")+
-   '<div class="one-time-detail"><strong>'+safe(t.title)+'</strong>'+
-   '<small>'+safe(dateLabel(t.dueOn))+
-   (overdue?" · 기한 지남":done?" · 완료":"")+'</small></div>'+
-   '<div class="one-time-actions">'+
-   (canComplete?el(done?"완료 취소":"완료",done?"tiny":"primary","one-time-toggle",attrs):"")+
-   (editable?el("수정","tiny","one-time-edit",attrs)+el("삭제","tiny","one-time-delete",attrs):"")+
+  const dot='<span class="dot '+(done?"on":"")+'">'+(done?"✓":"")+'</span>';
+  const labelText='<span class="one-time-label-text"><span class="task-name">'+safe(t.title)+'</span>'+
+   '<small class="one-time-date">'+safe(dateLabel(t.dueOn))+
+   (overdue?" · 기한 지남":done?" · 완료":"")+'</small></span>';
+  const label=canComplete?
+   '<button type="button" class="task-label one-time-check" data-action="one-time-toggle" '+attrs+
+   ' aria-pressed="'+done+'" aria-label="'+safe(t.title)+' '+(done?"완료 취소":"완료")+'">'+dot+labelText+'</button>':
+   '<div class="task-label">'+dot+labelText+'</div>';
+  return '<article '+attrs+' class="task one-time-item '+(done?"is-done task-done":overdue?"is-overdue":"")+'">'+
+   '<div class="task-top">'+label+
+   (editable?'<div class="one-time-actions">'+el("수정","tiny","one-time-edit",attrs)+
+    el("삭제","tiny","one-time-delete",attrs)+'</div>':"")+
    '</div></article>';
  };
- return '<section class="group one-time-group" '+(r==="parent"?'data-section-id="oneTime" ':'')+'aria-label="1회성 할 일">'+
-  '<div class="group-head">'+(r==="parent"?dragHandle("sections","1회성 할 일"):"")+
-  '<h2>1회성 할 일</h2><div class="section-head-actions">'+
-  el("+ 등록","tiny one-time-add","one-time-add")+'</div></div>'+
+ return '<section class="group one-time-group" aria-label="할 일">'+
+  '<div class="group-head"><h2>할 일</h2><div class="section-head-actions">'+
+   el("+ 등록","tiny one-time-add","one-time-add")+'</div></div>'+
   '<div class="one-time-list">'+
    '<div class="one-time-drag-group" data-status="pending">'+
    (pending.length?pending.map(card).join(""):'<p class="one-time-empty">진행 중인 할 일이 없습니다.</p>')+
@@ -1168,7 +1171,7 @@ function renderOneTimeTasks(d,r){
 }
 function oneTimeEditor(task){
  const day=task?.dueOn||seoulToday();
- open('<form id="oneTimeForm" class="form"><h2>'+(task?"1회성 할 일 수정":"1회성 할 일 등록")+'</h2>'+
+ open('<form id="oneTimeForm" class="form"><h2>'+(task?"할 일 수정":"할 일 등록")+'</h2>'+
   '<input name="id" type="hidden" value="'+safe(task?.id||"")+'">'+
   '<label>할 일<input name="title" maxlength="100" required value="'+safe(task?.title||"")+'" placeholder="할 일 입력"></label>'+
   '<label>날짜<input name="dueOn" type="date" required value="'+safe(day)+'"></label>'+
@@ -1224,11 +1227,9 @@ function render(){
    '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+
    el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
    el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
- const taskGroup='<section class="group" '+(r==="parent"?'data-section-id="habits"':'')+'><div class="group-head">'+
-  (r==="parent"?dragHandle("sections","할 일"):"")+'<h2>할 일</h2>'+
-  '</div><div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
- const bonusGroup=r==="parent"?'<section class="group" data-section-id="bonuses"><div class="group-head">'+
-  dragHandle("sections","추가 상벌 보너스")+'<h2>추가 상벌 보너스</h2></div>'+
+ const taskGroup='<section class="group"><div class="group-head"><h2>매일 할 일</h2></div>'+
+  '<div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
+ const bonusGroup=r==="parent"?'<section class="group"><div class="group-head"><h2>추가 상벌 보너스</h2></div>'+
   '<div class="bonus-list">'+d.bonusItems.map(item=>{
    const amount=(item.minutes>0?"+":"")+item.minutes+"분";
    return '<article class="bonus-entry '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
@@ -1414,10 +1415,10 @@ function bulkEditor(){
  open('<form id="bulkForm" class="form bulk-form" data-dirty="0">'+
    '<div class="bulk-editor-head"><h2>항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
    '<div class="bulk-tabs" role="tablist" aria-label="편집할 항목">'+
-   '<button type="button" role="tab" aria-selected="true" class="bulk-tab active" data-action="bulk-tab" data-panel="tasks">할 일 <small>'+habits.length+'</small></button>'+
+   '<button type="button" role="tab" aria-selected="true" class="bulk-tab active" data-action="bulk-tab" data-panel="tasks">매일 할 일 <small>'+habits.length+'</small></button>'+
    '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button></div>'+
    '<section class="bulk-section" id="bulkPanelTasks" data-bulk-panel="tasks" role="tabpanel">'+
-   '<div class="bulk-section-head"><span>수정할 항목을 선택하세요</span>'+el("+ 할 일","tiny","bulk-add-task")+'</div>'+
+   '<div class="bulk-section-head"><span>수정할 항목을 선택하세요</span>'+el("+ 매일 할 일","tiny","bulk-add-task")+'</div>'+
    '<div id="bulkTasks" class="bulk-list">'+habits.map(bulkTaskRow).join("")+'</div></section>'+
    '<section class="bulk-section" id="bulkPanelBonuses" data-bulk-panel="bonuses" role="tabpanel" hidden>'+
    '<div class="bulk-section-head"><span>수정할 상벌을 선택하세요</span>'+el("+ 상벌","tiny","bulk-add-bonus")+'</div>'+
