@@ -573,7 +573,7 @@ const dragRules={
  tasks:{row:".bulk-task-row",parent:"#bulkTasks"},
  bonuses:{row:".bulk-bonus-row",parent:"#bulkBonuses"},
  subitems:{row:".bulk-subitem",parent:".bulk-subitems"},
- sections:{row:".bulk-section-order-row",parent:"#bulkSections"},
+ sections:{row:".group[data-section-id]",parent:".view-parent.screen-today"},
  oneTime:{row:".one-time-item",parent:".one-time-drag-group"}
 };
 let activeDrag=null;
@@ -590,6 +590,7 @@ function dragRowName(row,kind){
  if(kind==="tasks"||kind==="bonuses")
   return row.querySelector(".bulk-summary-title")?.textContent||"할 일";
  if(kind==="subitems")return row.querySelector('[name="sub-title"]')?.value||"하위 항목";
+ if(kind==="sections")return row.querySelector("h2")?.textContent||"화면 구역";
  return row.querySelector("strong")?.textContent||"할 일";
 }
 function persistOneTimeOrder(){
@@ -605,12 +606,22 @@ function persistOneTimeOrder(){
  d.oneTimeTasks=[...ids.map(id=>byId.get(id)),...items.filter(t=>!ids.includes(t.id))];
  save(d);render();
 }
+function persistDisplaySectionOrder(){
+ requireParent();
+ if(oneTimeBusy||outstandingWrites||childActionBusy)throw Error("저장 중에는 화면 순서를 변경할 수 없습니다.");
+ const nodes=Array.from(document.querySelectorAll(".view-parent.screen-today > .group[data-section-id]"));
+ const ids=nodes.map(node=>node.dataset.sectionId);
+ if(ids.length!==3||new Set(ids).size!==3||ids.some(id=>!["habits","oneTime","bonuses"].includes(id)))
+  throw Error("화면 구역을 찾지 못했습니다. 새로고침 후 다시 시도해주세요.");
+ const d=read();d.displaySections=ids;
+ save(d);render();
+}
 function beginRowDrag(event){
  const handle=event.target.closest?.(".drag-handle");
  if(!handle||role()!=="parent"||event.isPrimary===false||event.button!==0||activeDrag)return;
  const context=dragContext(handle);
  if(!context)return;
- if(context.kind==="oneTime"&&(oneTimeBusy||outstandingWrites||childActionBusy)){
+ if(["oneTime","sections"].includes(context.kind)&&(oneTimeBusy||outstandingWrites||childActionBusy)){
   notify("저장 중입니다. 잠시 후 다시 시도해주세요.");return;
  }
  activeDrag={...context,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,
@@ -670,6 +681,7 @@ function finishRowDrag(event,cancelled=false){
  if(!drag.started||!changed)return;
  try{
   if(drag.kind==="oneTime")persistOneTimeOrder();
+  else if(drag.kind==="sections")persistDisplaySectionOrder();
   else bulkDirty(document.getElementById("bulkForm"));
  }catch(err){render();notify(err.message||"정렬을 저장하지 못했습니다.");}
 }
@@ -681,12 +693,19 @@ function keyboardRowDrag(event){
  const peers=dragItems(context.container,context.rule),index=peers.indexOf(context.row);
  const other=peers[index+(event.key==="ArrowUp"?-1:1)];
  if(!other)return;
- if(context.kind==="oneTime"&&(oneTimeBusy||outstandingWrites||childActionBusy)){
+ if(["oneTime","sections"].includes(context.kind)&&(oneTimeBusy||outstandingWrites||childActionBusy)){
   notify("저장 중입니다. 잠시 후 다시 시도해주세요.");return;
  }
  if(event.key==="ArrowUp")context.container.insertBefore(context.row,other);
  else context.container.insertBefore(other,context.row);
- if(context.kind==="oneTime"){
+ if(context.kind==="sections"){
+  const id=context.row.dataset.sectionId;
+  try{
+   persistDisplaySectionOrder();
+   Array.from(document.querySelectorAll(".view-parent.screen-today > .group[data-section-id]"))
+    .find(node=>node.dataset.sectionId===id)?.querySelector(".drag-handle[data-drag-kind='sections']")?.focus();
+  }catch(err){render();notify(err.message||"화면 순서를 저장하지 못했습니다.");}
+ }else if(context.kind==="oneTime"){
   const id=context.row.dataset.id;
   try{
    persistOneTimeOrder();
@@ -1135,8 +1154,10 @@ function renderOneTimeTasks(d,r){
    (editable?el("수정","tiny","one-time-edit",attrs)+el("삭제","tiny","one-time-delete",attrs):"")+
    '</div></article>';
  };
- return '<section class="group one-time-group" aria-label="1회성 할 일">'+
-  '<div class="group-head"><h2>1회성 할 일</h2>'+el("+ 등록","tiny one-time-add","one-time-add")+'</div>'+
+ return '<section class="group one-time-group" '+(r==="parent"?'data-section-id="oneTime" ':'')+'aria-label="1회성 할 일">'+
+  '<div class="group-head"><h2>1회성 할 일</h2><div class="section-head-actions">'+
+  (r==="parent"?dragHandle("sections","1회성 할 일"):"")+
+  el("+ 등록","tiny one-time-add","one-time-add")+'</div></div>'+
   '<div class="one-time-list">'+
    '<div class="one-time-drag-group" data-status="pending">'+
    (pending.length?pending.map(card).join(""):'<p class="one-time-empty">진행 중인 할 일이 없습니다.</p>')+
@@ -1203,9 +1224,11 @@ function render(){
    '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+
    el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
    el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
- const taskGroup='<section class="group"><div class="group-head"><h2>할 일</h2>'+
+ const taskGroup='<section class="group" '+(r==="parent"?'data-section-id="habits"':'')+'><div class="group-head"><h2>할 일</h2>'+
+  (r==="parent"?dragHandle("sections","할 일"):"")+
   '</div><div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
- const bonusGroup=r==="parent"?'<section class="group"><div class="group-head"><h2>추가 상벌 보너스</h2></div>'+
+ const bonusGroup=r==="parent"?'<section class="group" data-section-id="bonuses"><div class="group-head"><h2>추가 상벌 보너스</h2>'+
+  dragHandle("sections","추가 상벌 보너스")+'</div>'+
   '<div class="bonus-list">'+d.bonusItems.map(item=>{
    const amount=(item.minutes>0?"+":"")+item.minutes+"분";
    return '<article class="bonus-entry '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
@@ -1238,6 +1261,11 @@ function close(){
 }
 function notify(msg){const el=document.getElementById("toast");el.textContent=msg;el.hidden=false;clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>el.hidden=true,2400);}
 
+function foldChevron(){
+ return '<span class="bulk-chevron" aria-hidden="true">'+
+  '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">'+
+  '<path d="M6.5 9.5L12 14.5L17.5 9.5"/></svg></span>';
+}
 function bulkTaskRow(h){
  const e=h||{id:"",title:"",reward_minutes:5,items:[],active:true};
  const titles=[...new Set((e.items||[]).map(i=>String(i.group||"").trim()).filter(Boolean))];
@@ -1251,7 +1279,7 @@ function bulkTaskRow(h){
   (groups.length?" · "+groups.length+"개 묶음":"")+'</small>'+
   '</span>'+dragHandle("tasks",e.title||"새 할 일")+
   '<span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
-  '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
+  foldChevron()+'</summary>'+
   '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
   '<div class="bulk-inline-fields"><label>할 일 이름<input name="task-title" maxlength="80" value="'+safe(e.title)+'"></label>'+
   '<label>적립 시간 (분)<input name="task-minutes" type="number" min="1" max="180" value="'+e.reward_minutes+'"></label></div>'+
@@ -1307,7 +1335,7 @@ function bulkBonusRow(item){
   '<small class="bulk-summary-extra '+(b.minutes>0?"positive":"negative")+'">'+(b.minutes>0?"+":"")+b.minutes+'분</small>'+
   '</span>'+dragHandle("bonuses",b.title||"새 상벌")+
   '<span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
-  '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
+  foldChevron()+'</summary>'+
   '<div class="bulk-panel"><input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
   '<label>상벌 이름<input name="bonus-title" maxlength="80" value="'+safe(b.title)+'"></label>'+
   '<div class="bulk-inline-fields"><label>구분<select name="bonus-type">'+
@@ -1324,26 +1352,18 @@ function bulkEditor(){
    '<div class="bulk-editor-head"><h2>항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
    '<div class="bulk-tabs" role="tablist" aria-label="편집할 항목">'+
    '<button type="button" role="tab" aria-selected="true" class="bulk-tab active" data-action="bulk-tab" data-panel="tasks">할 일 <small>'+habits.length+'</small></button>'+
-   '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button>'+
-   '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="sections">화면 순서</button></div>'+
+   '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button></div>'+
    '<section class="bulk-section" id="bulkPanelTasks" data-bulk-panel="tasks" role="tabpanel">'+
    '<div class="bulk-section-head"><span>수정할 항목을 선택하세요</span>'+el("+ 할 일","tiny","bulk-add-task")+'</div>'+
    '<div id="bulkTasks" class="bulk-list">'+habits.map(bulkTaskRow).join("")+'</div></section>'+
    '<section class="bulk-section" id="bulkPanelBonuses" data-bulk-panel="bonuses" role="tabpanel" hidden>'+
    '<div class="bulk-section-head"><span>수정할 상벌을 선택하세요</span>'+el("+ 상벌","tiny","bulk-add-bonus")+'</div>'+
    '<div id="bulkBonuses" class="bulk-list">'+d.bonusItems.map(bulkBonusRow).join("")+'</div></section>'+
-   '<section class="bulk-section" id="bulkPanelSections" data-bulk-panel="sections" role="tabpanel" hidden>'+
-   '<div class="bulk-section-head"><span>아이 화면에도 같은 순서가 표시됩니다.</span></div>'+
-   '<div id="bulkSections" class="bulk-list">'+displaySections(d).map(id=>{
-    const labels={habits:"매일 할 일",oneTime:"1회성 할 일",bonuses:"상벌 보너스"};
-    return '<div class="bulk-section-order-row" data-section-id="'+safe(id)+'"><strong>'+safe(labels[id])+'</strong>'+
-     dragHandle("sections",labels[id])+'</div>';
-   }).join("")+'</div></section>'+
    '<div class="bulk-footer">'+el("취소","ghost","close")+
    '<button type="submit" class="primary">변경사항 저장</button></div></form>');
 }
 function bulkSetTab(name){
- const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses","sections"].includes(name))return;
+ const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses"].includes(name))return;
  form.querySelectorAll("[data-bulk-panel]").forEach(panel=>{
   panel.hidden=panel.dataset.bulkPanel!==name;
  });
@@ -1439,11 +1459,6 @@ function saveBulkEditor(form){
     !["add","subtract"].includes(type))throw Error("상벌 이름, 종류, 시간을 확인해주세요.");
   return {...(prev||{id:uid()}),title,minutes:minutes*(type==="add"?1:-1),active:bool(row,"bonus-active")};
  });
- const sectionOrder=Array.from(form.querySelectorAll("#bulkSections .bulk-section-order-row")).map(x=>x.dataset.sectionId);
- if(sectionOrder.length!==3||new Set(sectionOrder).size!==3||
-  sectionOrder.some(id=>!["habits","oneTime","bonuses"].includes(id)))
-  throw Error("화면 표시 순서를 확인해주세요.");
- d.displaySections=sectionOrder;
  d.habits=[...updatedTasks,...d.habits.filter(x=>x.moved_to_parent_bonus)];
  d.bonusItems=updatedBonuses;
  save(d);render();
