@@ -595,7 +595,9 @@ function dragRowName(row,kind){
 }
 function beginRowDrag(event){
  const handle=event.target.closest?.(".drag-handle");
- if(!handle||role()!=="parent"||event.isPrimary===false||event.button!==0||activeDrag)return;
+ // Sorting is only available in the parent editor, never on the browsing screen.
+ if(!handle?.closest("#bulkForm")||role()!=="parent"||
+    event.isPrimary===false||event.button!==0||activeDrag)return;
  const context=dragContext(handle);
  if(!context)return;
  activeDrag={...context,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,
@@ -661,7 +663,9 @@ function finishRowDrag(event,cancelled=false){
 }
 function keyboardRowDrag(event){
  if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)||role()!=="parent")return;
- const handle=event.target.closest?.(".drag-handle"),context=handle&&dragContext(handle);
+ const handle=event.target.closest?.(".drag-handle");
+ if(!handle?.closest("#bulkForm"))return;
+ const context=dragContext(handle);
  if(!context)return;
  const horizontal=context.kind==="sections";
  if(horizontal?!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(event.key):
@@ -1212,6 +1216,8 @@ function render(){
  }else{
   app.innerHTML='<main class="wrap view-parent screen-'+screen+'">'+header(r)+balance+nav+content+'</main>';
  }
+ // Defensive UI guard: a public screen must not expose editing drag controls.
+ app.querySelectorAll(".drag-handle").forEach(handle=>handle.remove());
  if(r==="parent"&&pending>lastPending&&document.visibilityState==="visible"){
   try{if("Notification" in window&&Notification.permission==="granted")new Notification("좋은습관",{body:"확인할 항목 "+pending+"개",tag:"bonus-pending"});}catch(_){}
  }
@@ -1904,7 +1910,20 @@ window.addEventListener("storage",e=>{
 document.addEventListener("visibilitychange",()=>{
  if(document.visibilityState==="visible"&&hasSyncToken())void loadFromDatabase(true);
 });
-if("serviceWorker" in navigator)navigator.serviceWorker.register("/kid-habits/sw.js",{scope:"/kid-habits/"}).catch(()=>{});
+if("serviceWorker" in navigator){
+ // Avoid stale service-worker scripts and refresh the installed PWA's assets.
+ navigator.serviceWorker.register("/kid-habits/sw.js",{scope:"/kid-habits/",updateViaCache:"none"})
+  .then(registration=>registration.update().catch(()=>{}))
+  .catch(()=>{});
+ navigator.serviceWorker.addEventListener("controllerchange",()=>{
+  const editor=document.getElementById("bulkForm");
+  // Never interrupt unsaved edits. The next navigation will load new assets.
+  if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
+  if(sessionStorage.getItem("kid-habits-sw-reload-v32")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v32","1");
+  window.location.reload();
+ });
+}
 let lastBackgroundCheck=Date.now();
 setInterval(()=>{
  if(!hasSyncToken()||document.visibilityState!=="visible"||outstandingWrites||childActionBusy)return;
