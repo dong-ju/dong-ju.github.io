@@ -131,7 +131,7 @@ const DEFAULT_BONUSES=[
 ];
 const starter=[
  {id:"morning",title:"아침 할 일",reward_minutes:5,sort_order:1,active:true,items:[{id:"bathroom",title:"소변 보기"},{id:"brush",title:"치카하기"},{id:"wash",title:"세수하기"},{id:"water",title:"물 마시기"}]},
- {id:"study",title:"공부하기",reward_minutes:10,sort_order:2,active:true,rotation:true,items:[{id:"math",title:"수학"},{id:"read",title:"책 읽기"},{id:"write",title:"받아쓰기 / 바르게 쓰기"}]},
+ {id:"study",title:"공부하기",reward_minutes:10,sort_order:2,active:true,rotation:true,items:[{id:"math",title:"수학"},{id:"read",title:"책 읽기"},{id:"dictation",title:"받아쓰기"},{id:"handwriting",title:"바르게 쓰기"}]},
  {id:"sleep",title:"잠들기",reward_minutes:5,sort_order:3,active:true,items:[]}
 ];
 function seoulToday(){let p=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(x=>[x.type,x.value]));return p.year+"-"+p.month+"-"+p.day;}
@@ -171,6 +171,14 @@ function migrate(d){
  if(study){
   if(!Array.isArray(study.items)||!study.items.length){
    study.items=JSON.parse(JSON.stringify(starter.find(x=>x.id==="study").items));
+  }
+  // Upgrade the original combined writing item to two alternating activities.
+  // Keep historical checks and ledger entries untouched.
+  const combined=study.items.find(x=>x.id==="write"&&x.title==="받아쓰기 / 바르게 쓰기");
+  if(combined){
+   study.items=study.items.filter(x=>x!==combined);
+   if(!study.items.some(x=>x.id==="dictation"))study.items.push({id:"dictation",title:"받아쓰기"});
+   if(!study.items.some(x=>x.id==="handwriting"))study.items.push({id:"handwriting",title:"바르게 쓰기"});
   }
   study.rotation=true;
  }
@@ -279,23 +287,30 @@ function cancelLedger(id){
 }
 function requireParent(){if(role()!=="parent")throw Error("부모 화면에서만 사용할 수 있습니다.");}
 function habit(d,hid){const h=d.habits.find(x=>x.id===hid&&x.active);if(!h)throw Error("항목을 찾지 못했습니다.");return h;}
+// Every day: math + reading + one alternating writing activity.
+// The two writing activities swap on fixed two-day blocks, regardless of checks.
+// The date anchor is the household's original start date, identical across devices.
 function studyAssignment(d,day){
  const h=d.habits.find(x=>x.id==="study");
- if(!h||!h.items.length)return null;
- let plan=d.studyDays;
- if(plan[day]){plan[day].index%=h.items.length;return plan[day];}
- const previous=Object.keys(plan).filter(x=>x<day).sort().pop();
- if(!previous){plan[day]={index:0,since:day};return plan[day];}
- let cursor=nextDay(previous),old=plan[previous],guard=0;
- while(cursor<=day&&guard++<20000){
-  const yesterday=nextDay(cursor,-1),yesterdayDone=check(d,"study",yesterday);
-  const advance=(yesterdayDone&&["pending","approved"].includes(yesterdayDone.status))||diffDays(cursor,old.since)>=2;
-  const current={index:advance?(old.index+1)%h.items.length:old.index,since:advance?cursor:old.since};
-  plan[cursor]=current;old=current;cursor=nextDay(cursor);
- }
- return plan[day]||{index:0,since:day};
+ if(!h)return null;
+ const alternates=h.items.filter(x=>x.id==="dictation"||x.id==="handwriting");
+ if(alternates.length!==2)return null;
+ const anchor=d.started_on||day;
+ const blocks=Math.max(0,Math.floor(diffDays(day,anchor)/2));
+ const index=blocks%2;
+ return {index,since:nextDay(anchor,blocks*2)};
 }
-function shownItems(d,h,day){if(h.rotation&&h.items.length){const a=studyAssignment(d,day);return [h.items[a.index%h.items.length]];}return h.items;}
+function shownItems(d,h,day){
+ if(h.id==="study"&&h.rotation){
+  const fixed=["math","read"].map(id=>h.items.find(x=>x.id===id)).filter(Boolean);
+  const alternates=["dictation","handwriting"].map(id=>h.items.find(x=>x.id===id)).filter(Boolean);
+  const assignment=studyAssignment(d,day);
+  if(assignment&&fixed.length===2&&alternates.length===2){
+   return [...fixed,alternates[assignment.index]];
+  }
+ }
+ return h.items;
+}
 function pushCheck(d,h,day){
  let c=check(d,h.id,day);
  if(c&&c.status==="approved")return;
@@ -358,17 +373,6 @@ function review(hid,status){
  }
  save(d);render();
 }
-function cycleStudy(){
- requireParent();const d=read(),h=habit(d,"study"),c=check(d,"study",viewDay);
- if(c&&c.status==="approved"){notify("승인된 항목은 변경할 수 없습니다.");return;}
- if(c&&c.status==="pending"&&!confirm("진행 중인 완료 요청을 취소하고 공부 항목을 변경할까요?"))return;
- const entry=studyAssignment(d,viewDay),next=(entry.index+1)%h.items.length;
- d.studyDays[viewDay]={index:next,since:viewDay};
- Object.keys(d.studyDays).filter(k=>k>viewDay).forEach(k=>delete d.studyDays[k]);
- d.subchecks[checkKey("study",viewDay)]=[];
- if(c)d.checks=d.checks.filter(x=>x!==c);
- save(d);render();
-}
 function applyBonusItem(itemId,reason){
  requireParent();
  const d=read(),item=d.bonusItems.find(x=>x.id===itemId&&x.active);
@@ -423,11 +427,10 @@ function renderTask(d,h,day,r){
   '<button type="button" class="task-label task-click" data-action="complete" data-id="'+safe(h.id)+'" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
   '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
- if(h.rotation&&isParent&&h.items.length>1&&!complete)actions.push(el("다음","tiny","cycle",'aria-label="다음 공부 항목"'));
  // Editing is available in one separate parent settings window.
  let detail="";
- // Keep all study topics visible; only today's one is checkable.
- // Study rotates the recommended task every two days (or the next day after completion).
+ // Keep both daily study tasks visible and checkable.
+ // Only dictation and handwriting alternate in fixed two-day blocks.
  if(items.length&&(isParent||!complete)){
   const visible=h.rotation&&h.items.length>1?h.items:items;
   const todays=new Set(items.map(item=>item.id));
@@ -440,14 +443,15 @@ function renderTask(d,h,day,r){
    return '<button type="button" class="subitem selectable study-current" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" '+(complete?"disabled":"")+'>'+dot+topic+'</button>';
   }).join("")+'</div>';
  }
- if(h.rotation&&h.items.length>1){
+ if(h.id==="study"&&h.rotation){
   if(complete){
-   const title=c?.completed_items?.[0]?.title||shownItems(d,h,day)[0]?.title||"";
-   detail+='<div class="study-next">완료한 공부: '+safe(title)+'</div>';
+   const titles=(c?.completed_items||items).map(x=>x.title).join(" · ");
+   detail+='<div class="study-next">완료한 공부: '+safe(titles)+'</div>';
   }else{
    const assigned=studyAssignment(d,day);
-   const next=h.items[(assigned.index+1)%h.items.length];
-   detail+='<div class="study-next">다음: '+safe(next.title)+' <span>· 2일 순환</span></div>';
+   const nextId=assigned?.index===0?"handwriting":"dictation";
+   const next=h.items.find(x=>x.id===nextId);
+   if(next)detail+='<div class="study-next">수학 · 책 읽기는 매일 <span>· '+safe(next.title)+'와 2일 교대</span></div>';
   }
  }
  let actionsBottom="";
@@ -468,17 +472,17 @@ function dailyCompletion(d,active,day){
  const result={day,totalTasks:0,approvedTasks:0,waitingTasks:0,totalSteps:0,tickedSteps:0,byId:{}};
  relevant.forEach(h=>{
   const available=day<=current&&day>=d.started_on&&day>=(h.created_on||d.started_on);
-  const stepCount=h.rotation&&h.items.length?1:Math.max(1,h.items.length);
+  const assignedSteps=shownItems(d,h,day);
+  const stepCount=Math.max(1,assignedSteps.length);
   if(!available){result.byId[h.id]={status:"out",steps:0,total:stepCount};return;}
   const c=check(d,h.id,day),status=c?.status||"";
   const ids=new Set(checked(d,h.id,day));
-  const stepItems=h.rotation?h.items:[...(h.items||[])];
-  // The daily study choice is a single assigned item, never all three.
+  const stepItems=assignedSteps;
+  // Daily study requires all three scheduled items: math, reading and today's writing.
   let ticked=0;
   if(status==="approved"||status==="pending")ticked=stepCount;
   else if(stepItems.length){
-   if(h.rotation)ticked=Math.min(1,ids.size);
-   else ticked=stepItems.filter(x=>ids.has(x.id)).length;
+   ticked=stepItems.filter(x=>ids.has(x.id)).length;
   }
   result.totalTasks++;
   result.totalSteps+=stepCount;
@@ -1252,7 +1256,6 @@ document.addEventListener("click",e=>{
   else if(act==="toggle")toggleItem(hid,t.dataset.item);
   else if(act==="complete")submitSimple(hid);
   else if(act==="review")review(hid,t.dataset.status);
-  else if(act==="cycle")cycleStudy();
   else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
   else if(act==="bulk-tab"&&role()==="parent")bulkSetTab(t.dataset.panel);
   else if(act==="bulk-add-task"&&role()==="parent"){
