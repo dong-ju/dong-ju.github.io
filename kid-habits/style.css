@@ -1937,46 +1937,69 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 @media(max-width:790px){
  .view-child .child-bonus-inline{gap:6px 15px}
 }
-/* Editor-only screen reorder, no extra tab. */
-.bulk-form .bulk-screen-order{
- display:block;flex:0 0 auto;
- border-bottom:1px solid #e8eee9;
- background:#fbfcfb;
+/* The final editor tab contains section ordering as a vertical, compact list. */
+#modal .bulk-form .bulk-section-order{
+ gap:12px;
+ padding-top:16px;
 }
-.bulk-form .bulk-screen-order>summary{
- display:flex;justify-content:space-between;align-items:center;
- cursor:pointer;min-height:39px;
- padding:7px 20px;
- font-size:12px;font-weight:650;color:#617666;
- list-style:none;
+#modal .bulk-form .bulk-section-order>.bulk-section-head{
+ align-items:flex-start;
 }
-.bulk-form .bulk-screen-order>summary::-webkit-details-marker{display:none}
-.bulk-form .bulk-screen-order>summary::marker{content:""}
-.bulk-form .bulk-screen-order>summary span{
- font-size:11px;color:#809588;font-weight:600;
+#modal .bulk-form .bulk-section-order>.bulk-section-head>span{
+ font-size:13px;
+ font-weight:500;
+ line-height:1.55;
+ color:#708176;
 }
-.bulk-form .bulk-screen-order[open]>summary{
- color:#376c4e;background:#edf5ef;
+#modal .bulk-form .bulk-section-order-list{
+ display:flex;
+ flex-direction:column;
+ align-items:stretch;
+ gap:0;
+ padding:0;
+ margin:0;
+ min-width:0;
+ width:100%;
+ overflow:visible;
 }
-.bulk-form .bulk-section-order-list{
- display:flex;align-items:stretch;gap:6px;
- padding:8px 17px 11px;overflow-x:auto;
- overscroll-behavior-x:contain;
+#modal .bulk-form .bulk-section-order-row{
+ display:flex;
+ align-items:center;
+ gap:9px;
+ width:100%;
+ min-width:0;
+ min-height:58px;
+ margin:0;
+ padding:7px 2px;
+ border:0;
+ border-bottom:1px solid #e9eeea;
+ border-radius:0;
+ background:transparent;
+ box-shadow:none;
 }
-.bulk-form .bulk-section-order-row{
- display:flex;align-items:center;
- gap:3px;flex:1 0 0;min-width:85px;
- border:1px solid #e2ebe5;border-radius:9px;
- background:#fff;
- padding:4px 6px;
+#modal .bulk-form .bulk-section-order-row:last-child{
+ border-bottom:0;
 }
-.bulk-form .bulk-section-order-row .drag-handle{
- width:28px;min-width:28px;height:36px;
- font-size:20px;
+#modal .bulk-form .bulk-section-order-row .drag-handle{
+ display:inline-flex;
+ flex:0 0 32px;
+ width:32px;
+ height:40px;
+ min-width:32px;
+ font-size:21px;
 }
-.bulk-form .bulk-section-order-row strong{
- font-size:11px;font-weight:680;color:#506b59;
- white-space:nowrap;
+#modal .bulk-form .bulk-section-order-row strong{
+ display:block;
+ min-width:0;
+ font-size:14px;
+ font-weight:700;
+ line-height:1.5;
+ color:#30483a;
+ white-space:normal;
+ overflow-wrap:anywhere;
+}
+#modal .bulk-form .bulk-section-order-row:focus-within{
+ background:#f9fbf9;
 }
 .bulk-form [data-bulk-panel][hidden]{display:none!important}
 /* Keep drag handles inside the edit dialog only (v32).
@@ -2142,10 +2165,6 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 }
 #modal .bulk-form .bulk-list>.bulk-row>.bulk-summary:focus-visible{
  outline:2px solid #3b8158;outline-offset:1px;
-}
-#modal .bulk-form .bulk-list>.bulk-row .bulk-edit-caption{
- flex:0 0 auto;margin-left:8px;
- font-size:12px;font-weight:700;color:#668474;
 }
 #modal .bulk-form .bulk-list>.bulk-row>.bulk-panel{display:none!important}
 #bulkDetailModal{
