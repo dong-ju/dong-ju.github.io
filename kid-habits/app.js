@@ -561,42 +561,140 @@ function setHabit(data){
  save(d);render();
 }
 function el(label,cls,action,attr=""){return '<button type="button" class="'+cls+'" data-action="'+action+'" '+attr+'>'+label+'</button>';}
-function reorderButtons(action,kind,label,attrs=""){
- const meta='data-kind="'+safe(kind)+'" '+attrs;
- return '<span class="reorder-buttons" role="group" aria-label="'+safe(label)+' 순서">'+
-  el("↑","tiny reorder-arrow",action,meta+' data-step="-1" aria-label="'+safe(label)+' 위로 이동"')+
-  el("↓","tiny reorder-arrow",action,meta+' data-step="1" aria-label="'+safe(label)+' 아래로 이동"')+'</span>';
+function dragHandle(kind,label){
+ return '<button type="button" class="drag-handle" data-drag-kind="'+safe(kind)+
+  '" aria-label="'+safe(label)+' 순서 변경, 드래그하거나 방향키 사용" title="끌어서 순서 변경">⠿</button>';
 }
 function displaySections(d){
  const allowed=["habits","oneTime","bonuses"],stored=Array.isArray(d.displaySections)?d.displaySections:[];
  return [...new Set([...stored.filter(k=>allowed.includes(k)),...allowed])];
 }
-function moveEditorItem(control){
- requireParent();
- const selectors={tasks:[".bulk-task-row","#bulkTasks"],bonuses:[".bulk-bonus-row","#bulkBonuses"],
-  subitems:[".bulk-subitem",".bulk-subitems"],sections:[".bulk-section-order-row","#bulkSections"]};
- const rule=selectors[control.dataset.kind],step=Number(control.dataset.step);
- if(!rule||![-1,1].includes(step))return;
- const entry=control.closest(rule[0]),container=entry?.parentElement;
- if(!entry||!container||!container.matches(rule[1]))return;
- const other=step<0?entry.previousElementSibling:entry.nextElementSibling;
- if(!other||!other.matches(rule[0]))return;
- if(step<0)container.insertBefore(entry,other);
- else container.insertBefore(other,entry);
- bulkDirty(document.getElementById("bulkForm"));
- control.focus();
+const dragRules={
+ tasks:{row:".bulk-task-row",parent:"#bulkTasks"},
+ bonuses:{row:".bulk-bonus-row",parent:"#bulkBonuses"},
+ subitems:{row:".bulk-subitem",parent:".bulk-subitems"},
+ sections:{row:".bulk-section-order-row",parent:"#bulkSections"},
+ oneTime:{row:".one-time-item",parent:".one-time-drag-group"}
+};
+let activeDrag=null;
+function dragItems(container,rule){
+ return Array.from(container.children).filter(node=>node.matches(rule.row));
 }
-function moveOneTimeTask(id,step){
+function dragContext(handle){
+ const kind=handle.dataset.dragKind,rule=dragRules[kind];
+ if(!rule)return null;
+ const row=handle.closest(rule.row),container=row?.parentElement;
+ return row&&container?.matches(rule.parent)?{kind,rule,row,container}:null;
+}
+function dragRowName(row,kind){
+ if(kind==="tasks"||kind==="bonuses")
+  return row.querySelector(".bulk-summary-title")?.textContent||"할 일";
+ if(kind==="subitems")return row.querySelector('[name="sub-title"]')?.value||"하위 항목";
+ return row.querySelector("strong")?.textContent||"할 일";
+}
+function persistOneTimeOrder(){
  requireParent();
- if(oneTimeBusy||outstandingWrites||childActionBusy)throw Error("저장 중입니다. 잠시 후 다시 시도해주세요.");
- const d=read(),tasks=d.oneTimeTasks||[],index=tasks.findIndex(t=>t.id===id);
- if(index<0||![-1,1].includes(step))return;
- const completed=!!tasks[index].completedAt;
- const same=tasks.map((t,i)=>!!t.completedAt===completed?i:-1).filter(i=>i>=0);
- const other=same[same.indexOf(index)+step];
- if(other===undefined)return;
- [tasks[index],tasks[other]]=[tasks[other],tasks[index]];
+ if(oneTimeBusy||outstandingWrites||childActionBusy)throw Error("저장 중에는 정렬할 수 없습니다.");
+ const d=read(),items=Array.isArray(d.oneTimeTasks)?d.oneTimeTasks:[];
+ const valid=items.filter(t=>t&&t.id&&t.title&&t.dueOn);
+ const ids=Array.from(document.querySelectorAll(".one-time-drag-group .one-time-item[data-id]"))
+  .map(row=>row.dataset.id);
+ if(ids.length!==valid.length||new Set(ids).size!==ids.length||
+    ids.some(id=>!valid.some(t=>t.id===id)))throw Error("목록이 변경되었습니다. 새로고침 후 다시 시도해주세요.");
+ const byId=new Map(items.map(t=>[t.id,t]));
+ d.oneTimeTasks=[...ids.map(id=>byId.get(id)),...items.filter(t=>!ids.includes(t.id))];
  save(d);render();
+}
+function beginRowDrag(event){
+ const handle=event.target.closest?.(".drag-handle");
+ if(!handle||role()!=="parent"||event.isPrimary===false||event.button!==0||activeDrag)return;
+ const context=dragContext(handle);
+ if(!context)return;
+ if(context.kind==="oneTime"&&(oneTimeBusy||outstandingWrites||childActionBusy)){
+  notify("저장 중입니다. 잠시 후 다시 시도해주세요.");return;
+ }
+ activeDrag={...context,pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,
+  original:dragItems(context.container,context.rule),started:false,preview:null};
+ event.preventDefault();event.stopPropagation();
+}
+function moveRowDrag(event){
+ const drag=activeDrag;
+ if(!drag||event.pointerId!==drag.pointerId)return;
+ if(!drag.started&&Math.hypot(event.clientX-drag.startX,event.clientY-drag.startY)<7)return;
+ event.preventDefault();
+ if(!drag.started){
+  drag.started=true;
+  drag.row.classList.add("drag-source");
+  document.documentElement.classList.add("sort-drag-active");
+  const preview=document.createElement("div");
+  preview.className="sort-drag-preview";
+  preview.textContent=dragRowName(drag.row,drag.kind);
+  preview.style.width=Math.min(280,Math.max(150,drag.row.getBoundingClientRect().width))+"px";
+  document.body.appendChild(preview);
+  drag.preview=preview;
+ }
+ if(drag.preview){
+  drag.preview.style.left=Math.max(8,Math.min(window.innerWidth-160,event.clientX+12))+"px";
+  drag.preview.style.top=Math.max(8,Math.min(window.innerHeight-54,event.clientY+12))+"px";
+ }
+ const scroll=drag.container.closest(".bulk-section");
+ if(scroll){
+  const bounds=scroll.getBoundingClientRect();
+  if(event.clientY<bounds.top+40)scroll.scrollTop-=15;
+  else if(event.clientY>bounds.bottom-40)scroll.scrollTop+=15;
+ }else{
+  if(event.clientY<40)window.scrollBy(0,-14);
+  else if(event.clientY>window.innerHeight-40)window.scrollBy(0,14);
+ }
+ const rect=drag.container.getBoundingClientRect();
+ if(event.clientX<rect.left-28||event.clientX>rect.right+28||
+    event.clientY<rect.top-32||event.clientY>rect.bottom+32)return;
+ const peers=dragItems(drag.container,drag.rule).filter(node=>node!==drag.row);
+ const before=peers.find(node=>{
+  const b=node.getBoundingClientRect();return event.clientY<b.top+b.height/2;
+ });
+ if(before)drag.container.insertBefore(drag.row,before);
+ else drag.container.appendChild(drag.row);
+}
+function finishRowDrag(event,cancelled=false){
+ const drag=activeDrag;if(!drag||event.pointerId!==drag.pointerId)return;
+ activeDrag=null;
+ const changed=drag.original.some((node,i)=>node!==dragItems(drag.container,drag.rule)[i]);
+ drag.preview?.remove();
+ drag.row.classList.remove("drag-source");
+ document.documentElement.classList.remove("sort-drag-active");
+ if(cancelled){
+  if(changed)drag.original.forEach(node=>drag.container.appendChild(node));
+  return;
+ }
+ if(!drag.started||!changed)return;
+ try{
+  if(drag.kind==="oneTime")persistOneTimeOrder();
+  else bulkDirty(document.getElementById("bulkForm"));
+ }catch(err){render();notify(err.message||"정렬을 저장하지 못했습니다.");}
+}
+function keyboardRowDrag(event){
+ if(!["ArrowUp","ArrowDown"].includes(event.key)||role()!=="parent")return;
+ const handle=event.target.closest?.(".drag-handle"),context=handle&&dragContext(handle);
+ if(!context)return;
+ event.preventDefault();event.stopPropagation();
+ const peers=dragItems(context.container,context.rule),index=peers.indexOf(context.row);
+ const other=peers[index+(event.key==="ArrowUp"?-1:1)];
+ if(!other)return;
+ if(context.kind==="oneTime"&&(oneTimeBusy||outstandingWrites||childActionBusy)){
+  notify("저장 중입니다. 잠시 후 다시 시도해주세요.");return;
+ }
+ if(event.key==="ArrowUp")context.container.insertBefore(context.row,other);
+ else context.container.insertBefore(other,context.row);
+ if(context.kind==="oneTime"){
+  const id=context.row.dataset.id;
+  try{
+   persistOneTimeOrder();
+   Array.from(document.querySelectorAll(".one-time-item")).find(row=>row.dataset.id===id)?.querySelector(".drag-handle")?.focus();
+  }catch(err){render();notify(err.message||"정렬을 저장하지 못했습니다.");}
+ }else{
+  bulkDirty(document.getElementById("bulkForm"));handle.focus();
+ }
 }
 function status(c){return c?.status==="approved"?"완료":c?.status==="rejected"?"다시 하기":"";}
 function renderTask(d,h,day,r){
@@ -1027,21 +1125,24 @@ function renderOneTimeTasks(d,r){
   const editable=r==="parent"||t.creatorRole==="child";
   const canComplete=r==="child"&&serverDevice?.role==="child";
   const attrs='data-id="'+safe(t.id)+'"';
-  return '<article class="one-time-item '+(done?"is-done":overdue?"is-overdue":"")+'">'+
+  return '<article data-id="'+safe(t.id)+'" class="one-time-item '+(done?"is-done":overdue?"is-overdue":"")+'">'+
    '<div class="one-time-detail"><strong>'+safe(t.title)+'</strong>'+
    '<small>'+safe(dateLabel(t.dueOn))+
    (overdue?" · 기한 지남":done?" · 완료":"")+'</small></div>'+
    '<div class="one-time-actions">'+
    (canComplete?el(done?"완료 취소":"완료",done?"tiny":"primary","one-time-toggle",attrs):"")+
-   (r==="parent"?reorderButtons("one-time-move","oneTime",t.title,attrs):"")+
+   (r==="parent"?dragHandle("oneTime",t.title):"")+
    (editable?el("수정","tiny","one-time-edit",attrs)+el("삭제","tiny","one-time-delete",attrs):"")+
    '</div></article>';
  };
  return '<section class="group one-time-group" aria-label="1회성 할 일">'+
   '<div class="group-head"><h2>1회성 할 일</h2>'+el("+ 등록","tiny one-time-add","one-time-add")+'</div>'+
   '<div class="one-time-list">'+
+   '<div class="one-time-drag-group" data-status="pending">'+
    (pending.length?pending.map(card).join(""):'<p class="one-time-empty">진행 중인 할 일이 없습니다.</p>')+
-   (completed.length?'<div class="one-time-subhead">완료한 할 일</div>'+completed.map(card).join(""):"")+
+   '</div>'+
+   (completed.length?'<div class="one-time-subhead">완료한 할 일</div>'+
+    '<div class="one-time-drag-group" data-status="completed">'+completed.map(card).join("")+'</div>':"")+
   '</div></section>';
 }
 function oneTimeEditor(task){
@@ -1148,7 +1249,7 @@ function bulkTaskRow(h){
   '<strong class="bulk-summary-title">'+safe(e.title||"새 할 일")+'</strong>'+
   '<small class="bulk-summary-extra">+'+e.reward_minutes+'분 · '+(e.items.length?e.items.length+"개 하위 항목":"단일 체크")+
   (groups.length?" · "+groups.length+"개 묶음":"")+'</small>'+
-  '</span>'+reorderButtons("bulk-move","tasks",e.title||"새 할 일")+
+  '</span>'+dragHandle("tasks",e.title||"새 할 일")+
   '<span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
   '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
   '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
@@ -1179,7 +1280,7 @@ function bulkSubRow(item,groups=[]){
   '<option value="">필수</option>'+
   groups.map(g=>'<option value="'+safe(g.id)+'" '+(g.id===choice?"selected":"")+'>'+safe(g.title)+'</option>').join("")+
   '</select>'+
-  '<span class="bulk-row-control-group">'+reorderButtons("bulk-move","subitems",title||"하위 항목")+
+  '<span class="bulk-row-control-group">'+dragHandle("subitems",title||"하위 항목")+
   el("×","tiny muted","bulk-remove-sub",'aria-label="하위 항목 삭제"')+'</span></div>';
 }
 function bulkGroupDefinitions(row){
@@ -1204,7 +1305,7 @@ function bulkBonusRow(item){
   '<summary class="bulk-summary"><span class="bulk-summary-left">'+
   '<strong class="bulk-summary-title">'+safe(b.title||"새 상벌")+'</strong>'+
   '<small class="bulk-summary-extra '+(b.minutes>0?"positive":"negative")+'">'+(b.minutes>0?"+":"")+b.minutes+'분</small>'+
-  '</span>'+reorderButtons("bulk-move","bonuses",b.title||"새 상벌")+
+  '</span>'+dragHandle("bonuses",b.title||"새 상벌")+
   '<span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
   '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
   '<div class="bulk-panel"><input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
@@ -1236,7 +1337,7 @@ function bulkEditor(){
    '<div id="bulkSections" class="bulk-list">'+displaySections(d).map(id=>{
     const labels={habits:"매일 할 일",oneTime:"1회성 할 일",bonuses:"상벌 보너스"};
     return '<div class="bulk-section-order-row" data-section-id="'+safe(id)+'"><strong>'+safe(labels[id])+'</strong>'+
-     reorderButtons("bulk-move","sections",labels[id])+'</div>';
+     dragHandle("sections",labels[id])+'</div>';
    }).join("")+'</div></section>'+
    '<div class="bulk-footer">'+el("취소","ghost","close")+
    '<button type="submit" class="primary">변경사항 저장</button></div></form>');
@@ -1522,6 +1623,14 @@ function exportData(){
  a.href=url;a.download="좋은습관-"+seoulToday()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);
  notify("백업 저장");
 }
+document.addEventListener("pointerdown",beginRowDrag);
+document.addEventListener("pointermove",moveRowDrag,{passive:false});
+document.addEventListener("pointerup",event=>finishRowDrag(event));
+document.addEventListener("pointercancel",event=>finishRowDrag(event,true));
+document.addEventListener("keydown",keyboardRowDrag);
+document.addEventListener("click",event=>{
+ if(event.target.closest?.(".drag-handle")){event.preventDefault();event.stopPropagation();}
+},true);
 document.addEventListener("click",e=>{
  const t=e.target.closest("[data-action]");if(!t)return;
  const act=t.dataset.action,hid=t.dataset.id;
@@ -1550,7 +1659,6 @@ document.addEventListener("click",e=>{
   else if(act==="complete")submitSimple(hid);
   else if(act==="review")review(hid,t.dataset.status);
   else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
-  else if(act==="bulk-move"&&role()==="parent"){e.preventDefault();e.stopPropagation();moveEditorItem(t);}
   else if(act==="bulk-tab"&&role()==="parent")bulkSetTab(t.dataset.panel);
   else if(act==="bulk-add-task"&&role()==="parent"){
    const list=document.getElementById("bulkTasks");
@@ -1595,7 +1703,6 @@ document.addEventListener("click",e=>{
    bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="one-time-add"){oneTimeEditor(null);}
-  else if(act==="one-time-move"&&role()==="parent"){moveOneTimeTask(hid,Number(t.dataset.step));}
   else if(act==="one-time-edit"){
    const task=(read().oneTimeTasks||[]).find(x=>x.id===hid);
    if(task&&(role()==="parent"||task.creatorRole==="child"))oneTimeEditor(task);
