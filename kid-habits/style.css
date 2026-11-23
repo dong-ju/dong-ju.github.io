@@ -1833,8 +1833,8 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 .view-parent .one-time-empty{padding:12px 10px}
 .view-parent .one-time-subhead{margin-top:4px}
 
-/* Child bonus catalogue: a single flowing, readable line with clear separators.
-   No two-column tile layout; sideways scroll on narrow devices. */
+/* Child bonus catalogue: wrap to additional lines with one leading dot per item.
+   Never create a sideways scroll; use a flowing list rather than a two-column grid. */
 .view-child .child-work>.child-bonus-group{margin-top:16px}
 .view-child .child-bonus-line{
  display:flex;align-items:center;gap:12px;min-width:0;
@@ -1877,6 +1877,65 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 @media(max-width:790px){
  .view-child .child-bonus-line{flex-direction:column;align-items:stretch;gap:4px}
  .view-child .child-bonus-inline{width:100%}
+}
+/* Each reward/penalty is clearly marked at its beginning, including when wrapped.
+   Avoid a separator between entries: the dot belongs to its own item. */
+.view-child .child-bonus-inline{
+ display:flex;
+ flex-flow:row wrap;
+ align-items:center;
+ gap:7px 15px;
+ width:100%;
+ min-width:0;
+ max-width:100%;
+ overflow:visible;
+ padding:2px 0;
+ scrollbar-width:auto;
+ overscroll-behavior-x:auto;
+}
+.view-child .child-bonus-chip{
+ display:inline-flex;
+ flex:0 1 auto;
+ align-items:center;
+ gap:6px;
+ min-width:0;
+ max-width:100%;
+ white-space:normal;
+ overflow-wrap:anywhere;
+ padding:3px 0;
+}
+.view-child .child-bonus-chip::before{
+ content:"";
+ display:inline-block;
+ flex:0 0 6px;
+ width:6px;
+ height:6px;
+ margin-right:2px;
+ border-radius:50%;
+ background:#7e9c86;
+}
+.view-child .child-bonus-chip + .child-bonus-chip::before{
+ content:"";
+ display:inline-block;
+ margin:0 2px 0 0;
+ font-size:inherit;
+ line-height:normal;
+ font-weight:normal;
+ color:inherit;
+}
+.view-child .child-bonus-chip>span{
+ min-width:0;
+ white-space:normal;
+ word-break:keep-all;
+ overflow-wrap:anywhere;
+}
+.view-child .child-bonus-chip b{
+ flex:0 0 auto;
+ font-variant-numeric:tabular-nums;
+ white-space:nowrap;
+}
+@media(max-width:790px){
+ .view-child .child-bonus-inline{gap:5px 12px}
 }
 /* Editor-only screen reorder, no extra tab. */
 .bulk-form .bulk-screen-order{
