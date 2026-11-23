@@ -597,8 +597,11 @@ function dragRowName(row,kind){
 }
 function beginRowDrag(event){
  const handle=event.target.closest?.(".drag-handle");
- // Sorting is only available in the parent editor, never on the browsing screen.
- if(!handle?.closest("#bulkForm")||role()!=="parent"||
+ // Sorting stays in the parent editor; subitem grips also work inside
+ // the temporary detail dialog where their fields are edited.
+ const inList=handle?.closest("#bulkForm");
+ const inDetail=handle?.dataset.dragKind==="subitems"&&handle?.closest("#bulkDetailModal");
+ if((!inList&&!inDetail)||role()!=="parent"||
     event.isPrimary===false||event.button!==0||activeDrag)return;
  const context=dragContext(handle);
  if(!context)return;
@@ -666,7 +669,9 @@ function finishRowDrag(event,cancelled=false){
 function keyboardRowDrag(event){
  if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)||role()!=="parent")return;
  const handle=event.target.closest?.(".drag-handle");
- if(!handle?.closest("#bulkForm"))return;
+ const inList=handle?.closest("#bulkForm");
+ const inDetail=handle?.dataset.dragKind==="subitems"&&handle?.closest("#bulkDetailModal");
+ if(!inList&&!inDetail)return;
  const context=dragContext(handle);
  if(!context)return;
  const horizontal=context.kind==="sections";
