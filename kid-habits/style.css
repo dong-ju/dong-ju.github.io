@@ -1552,14 +1552,14 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 }
 /* Panel is attached to the current editing dialog, above its scroll area. */
 #modal:has(.bulk-form){isolation:isolate}
-#modal .subgroup-picker-overlay{
+:is(#modal,#bulkDetailModal) .subgroup-picker-overlay{
  position:absolute;inset:0;
  display:flex;align-items:center;justify-content:center;
  padding:18px;
  z-index:30;
  background:rgba(22,36,27,.26);
 }
-#modal .subgroup-picker-panel{
+:is(#modal,#bulkDetailModal) .subgroup-picker-panel{
  width:min(100%,370px);max-height:min(78%,490px);
  display:flex;flex-direction:column;min-height:0;
  border-radius:16px;
@@ -1567,26 +1567,26 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  box-shadow:0 18px 52px rgba(20,38,26,.22);
  overflow:hidden;
 }
-#modal .subgroup-picker-head{
+:is(#modal,#bulkDetailModal) .subgroup-picker-head{
  display:flex;align-items:center;justify-content:space-between;
  gap:12px;flex:0 0 auto;
  padding:15px 17px 12px;
  border-bottom:1px solid #e9efeb;
 }
-#modal .subgroup-picker-head strong{font-size:16px;color:#253d2d;font-weight:730}
-#modal .subgroup-picker-close{
+:is(#modal,#bulkDetailModal) .subgroup-picker-head strong{font-size:16px;color:#253d2d;font-weight:730}
+:is(#modal,#bulkDetailModal) .subgroup-picker-close{
  display:inline-flex;align-items:center;justify-content:center;
  width:34px;height:34px;min-width:34px;
  border:0;border-radius:9px;
  font-size:24px;line-height:1;
  background:transparent;color:#708376;
 }
-#modal .subgroup-picker-options{
+:is(#modal,#bulkDetailModal) .subgroup-picker-options{
  display:flex;flex-direction:column;overflow-y:auto;min-height:0;
  padding:6px 9px 12px;
  overscroll-behavior:contain;
 }
-#modal .subgroup-picker-option{
+:is(#modal,#bulkDetailModal) .subgroup-picker-option{
  display:flex;align-items:center;justify-content:space-between;
  gap:14px;
  width:100%;min-height:49px;
@@ -1597,22 +1597,22 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  text-align:left;
  cursor:pointer;
 }
-#modal .subgroup-picker-option-name{
+:is(#modal,#bulkDetailModal) .subgroup-picker-option-name{
  display:block;min-width:0;
  overflow-wrap:anywhere;
  white-space:normal;
 }
-#modal .subgroup-picker-option svg{flex:0 0 20px;color:#26724b}
-#modal .subgroup-picker-option.selected{
+:is(#modal,#bulkDetailModal) .subgroup-picker-option svg{flex:0 0 20px;color:#26724b}
+:is(#modal,#bulkDetailModal) .subgroup-picker-option.selected{
  background:#edf6ef;color:#245a3d;font-weight:700;
 }
-#modal .subgroup-picker-option:hover{background:#f3f8f4}
-#modal .subgroup-picker-option:focus-visible{outline:2px solid #479361;outline-offset:-2px}
+:is(#modal,#bulkDetailModal) .subgroup-picker-option:hover{background:#f3f8f4}
+:is(#modal,#bulkDetailModal) .subgroup-picker-option:focus-visible{outline:2px solid #479361;outline-offset:-2px}
 @media(max-width:640px){
- #modal .subgroup-picker-overlay{
+ :is(#modal,#bulkDetailModal) .subgroup-picker-overlay{
   padding:0;align-items:flex-end;background:rgba(16,29,20,.32);
  }
- #modal .subgroup-picker-panel{
+ :is(#modal,#bulkDetailModal) .subgroup-picker-panel{
   width:100%;max-height:min(65dvh,510px);
   border-radius:18px 18px 0 0;
   padding-bottom:env(safe-area-inset-bottom);
@@ -2089,4 +2089,169 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  .bulk-form .bulk-row>.bulk-summary,
  .bulk-form .bulk-row[open]>.bulk-summary{padding:10px 9px}
  .bulk-form .bulk-row[open]>.bulk-panel{padding:12px 10px 14px}
+}
+
+/* Edition v37 — list stays sortable, each item opens a separate detail modal. */
+#modal .bulk-form .bulk-list{
+ display:flex;flex-direction:column;gap:8px;
+}
+#modal .bulk-form .bulk-list>.bulk-row{
+ display:flex!important;
+ align-items:center;gap:6px;
+ min-width:0;
+ min-height:62px;
+ margin:0;padding:6px 10px;
+ border:1px solid #e1e9e3;border-radius:11px;
+ background:#fff;box-shadow:none;
+}
+#modal .bulk-form .bulk-list>.bulk-row>.drag-handle{
+ display:inline-flex!important;
+ flex:0 0 32px;
+ height:40px;
+ align-self:center;
+}
+#modal .bulk-form .bulk-list>.bulk-row>.bulk-summary{
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ flex:1;min-width:0;min-height:49px;
+ padding:6px 5px;margin:0;
+ background:transparent;border:0;
+ border-radius:8px;
+ color:inherit;text-align:left;
+ font:inherit;cursor:pointer;
+}
+#modal .bulk-form .bulk-list>.bulk-row>.bulk-summary:active{
+ background:#f4f7f4;
+}
+#modal .bulk-form .bulk-list>.bulk-row>.bulk-summary:focus-visible{
+ outline:2px solid #3b8158;outline-offset:1px;
+}
+#modal .bulk-form .bulk-list>.bulk-row .bulk-edit-caption{
+ flex:0 0 auto;margin-left:8px;
+ font-size:12px;font-weight:700;color:#668474;
+}
+#modal .bulk-form .bulk-list>.bulk-row>.bulk-panel{display:none!important}
+#bulkDetailModal{
+ box-sizing:border-box;
+ width:min(calc(100vw - 28px),540px);
+ max-width:540px;
+ max-height:min(88dvh,850px);
+ margin:auto;padding:0;
+ border:1px solid #e1e9e3;border-radius:17px;
+ background:#fff;color:#293e30;
+ box-shadow:0 18px 55px rgba(23,40,26,.22);
+ overflow:hidden;
+}
+#bulkDetailModal[open]{
+ display:flex;flex-direction:column;
+}
+#bulkDetailModal::backdrop{background:rgba(20,32,23,.48)}
+#bulkDetailModal .bulk-detail-head{
+ display:flex;align-items:center;justify-content:space-between;
+ gap:10px;flex:0 0 auto;
+ padding:17px 19px 13px;border-bottom:1px solid #e9eee9;
+}
+#bulkDetailModal .bulk-detail-head small{
+ display:block;font-size:12px;font-weight:660;color:#738878;margin-bottom:3px;
+}
+#bulkDetailModal .bulk-detail-head h2{
+ margin:0;font-size:18px;font-weight:750;line-height:1.4;
+}
+#bulkDetailModal .bulk-detail-close{
+ width:37px;height:37px;min-width:37px;
+ display:inline-flex;align-items:center;justify-content:center;
+ padding:0;border:0;border-radius:10px;background:transparent;
+ color:#6b786e;font-size:25px;line-height:1;cursor:pointer;
+}
+#bulkDetailModal .bulk-detail-scroll{
+ display:block;flex:1 1 auto;min-height:0;
+ overflow-y:auto;overflow-x:hidden;
+ overscroll-behavior:contain;
+ padding:16px 19px;
+}
+#bulkDetailModal .bulk-detail-content{
+ display:block;
+}
+#bulkDetailModal .bulk-detail-content>.bulk-row{
+ display:block!important;margin:0;padding:0;
+ border:0;border-radius:0;background:transparent;
+ box-shadow:none;
+}
+#bulkDetailModal .bulk-detail-content>.bulk-row>.drag-handle,
+#bulkDetailModal .bulk-detail-content>.bulk-row>.bulk-summary{
+ display:none!important;
+}
+#bulkDetailModal .bulk-detail-content>.bulk-row>.bulk-panel{
+ display:grid!important;
+ gap:13px;padding:0;margin:0;
+ border:0;border-radius:0;
+ background:#fff;box-shadow:none;
+}
+#bulkDetailModal .bulk-detail-footer{
+ display:flex;gap:9px;flex:0 0 auto;
+ padding:12px 19px 16px;border-top:1px solid #e9eee9;
+ background:#fff;
+}
+#bulkDetailModal .bulk-detail-footer button{flex:1;min-height:44px}
+#bulkDetailModal .subgroup-picker-overlay{
+ z-index:50;position:absolute;inset:0;
+}
+@media(max-width:639px){
+ #bulkDetailModal{
+  width:calc(100vw - 18px);max-height:90dvh;
+  border-radius:14px;
+ }
+ #bulkDetailModal .bulk-detail-head{padding:13px 14px 11px}
+ #bulkDetailModal .bulk-detail-scroll{padding:13px 13px}
+ #bulkDetailModal .bulk-detail-footer{padding:11px 13px 14px}
+ #modal .bulk-form .bulk-list>.bulk-row{padding:5px 8px}
+ /* Parent and child share the same phone-width and card spacing. */
+ .wrap.view-parent,.wrap.view-child{
+  width:calc(100% - 24px);
+  max-width:none;
+  padding-top:14px;
+  padding-bottom:60px;
+ }
+ .wrap.view-parent>.top,.wrap.view-child>.top{margin-bottom:14px}
+ .view-parent .group,.view-child .child-work>.group{
+  margin-bottom:16px;
+ }
+ .view-parent .group-head,.view-child .child-work .group-head{
+  margin-bottom:10px;
+ }
+ .view-parent .group-head h2,.view-child .child-work .group-head h2{
+  font-size:18px;line-height:1.35;
+ }
+ .view-parent .task,.view-child .child-work .task{
+  padding:13px 13px;border-radius:13px;
+ }
+ .view-parent .task-name,.view-child .child-work .task .task-name{
+  font-size:16px;line-height:1.35;
+ }
+ .view-child .child-work{margin-top:14px}
+}
+/* Check completion + reward align vertically with the check label. */
+.view-child.screen-today .child-work .task .task-top{
+ display:flex;align-items:center;gap:7px;
+}
+.view-child.screen-today .child-work .task .right{
+ display:inline-flex;align-items:center;justify-content:flex-end;
+ flex-wrap:nowrap;gap:6px;
+ flex:0 0 auto;min-height:43px;
+ margin-left:auto;
+}
+.view-child.screen-today .child-work .task .right .state,
+.view-child.screen-today .child-work .task .right .reward{
+ display:inline-flex;align-items:center;justify-content:center;
+ line-height:1.4;vertical-align:middle;margin:0;
+}
+/* Single daily task button must have no green full-row hover/press fill. */
+.view-child.screen-today .child-work .task .task-single-check:hover:not(:disabled),
+.view-child.screen-today .child-work .task .task-single-check:active:not(:disabled){
+ background:transparent!important;
+}
+.view-child.screen-today .child-work .task.task-checked:has(.task-single-check),
+.view-child.screen-today .child-work .task.task-done:has(.task-single-check){
+ background:#fff!important;box-shadow:none!important;
 }
