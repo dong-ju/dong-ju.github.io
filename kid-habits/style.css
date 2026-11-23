@@ -1979,149 +1979,10 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  white-space:nowrap;
 }
 .bulk-form [data-bulk-panel][hidden]{display:none!important}
-/* Expanded item stays recognizable while scrolling through its contents. */
-.bulk-form .bulk-row[open]>.bulk-summary{
- position:sticky;top:0;z-index:2;
- border-left:3px solid #6d9c7b;
- padding:11px 8px 11px 6px;
- background:#edf6ef;
- border-radius:8px 8px 0 0;
-}
-.bulk-form .bulk-row[open]>.bulk-panel{
- display:grid;gap:12px;
- padding:11px 9px 18px 12px;
- border-left:3px solid #6d9c7b;
- background:linear-gradient(90deg,#f8fbf8,#fff 80%);
-}
-.bulk-form .bulk-panel-context{
- display:flex;align-items:baseline;flex-wrap:wrap;
- gap:6px 9px;min-width:0;
- padding:0 0 9px;
- border-bottom:1px solid #e4eee6;
-}
-.bulk-form .bulk-panel-context span{
- flex:0 0 auto;
- font-size:11px;font-weight:760;color:#5f9070;
-}
-.bulk-form .bulk-panel-context strong{
- min-width:0;font-size:13px;font-weight:720;
- color:#355a42;overflow-wrap:anywhere;
-}
-.bulk-form .bulk-row[open]{border-bottom-color:#cdded1}
-@media(max-width:640px){
- .bulk-form .bulk-screen-order>summary{padding:7px 14px}
- .bulk-form .bulk-section-order-list{padding:8px 12px 11px}
- .bulk-form .bulk-row[open]>.bulk-panel{padding:9px 5px 15px 9px}
- .bulk-form .bulk-row[open]>.bulk-summary{padding:11px 7px 11px 4px}
-}
-
 /* Keep drag handles inside the edit dialog only (v32).
    A stale/legacy browse template must never expose editing controls. */
 #app .drag-handle{display:none!important}
 #modal .bulk-form .drag-handle{display:inline-flex}
-
-/* Daily-task editor: a quiet connected outline instead of nested cards.
-   The line and elbows visually join the expanded parent row to its fields. */
-.bulk-form .bulk-task-row[open]{
- background:transparent;
- border-bottom:1px solid #d8e3d9;
- box-shadow:none;
-}
-.bulk-form .bulk-task-row[open]>.bulk-summary{
- position:relative;
- top:auto;
- z-index:auto;
- background:#f5f9f5;
- border:0;
- border-radius:7px;
- padding:11px 5px;
-}
-.bulk-form .bulk-task-row[open]>.bulk-summary .bulk-summary-title{
- color:#29543b;
-}
-.bulk-form .bulk-task-row[open]>.bulk-summary::after{
- content:"";
- position:absolute;
- left:16px;bottom:-10px;
- width:2px;height:15px;
- background:#b8d1bf;
- pointer-events:none;
-}
-.bulk-form .bulk-task-row[open]>.bulk-panel{
- display:grid;
- position:relative;
- gap:12px;
- padding:12px 6px 17px 26px;
- border:0;
- background:transparent;
- box-shadow:none;
-}
-.bulk-form .bulk-task-row[open]>.bulk-panel::before{
- content:"";
- position:absolute;
- left:16px;top:0;bottom:17px;
- width:2px;
- border-radius:2px;
- background:#b8d1bf;
- pointer-events:none;
-}
-.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-panel-context,
-.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-inline-fields,
-.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-subsection,
-.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-row-options{
- position:relative;
- min-width:0;
-}
-.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-panel-context::before,
-.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-inline-fields::before,
-.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-subsection::before,
-.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-row-options::before{
- content:"";
- position:absolute;
- width:10px;height:2px;
- left:-10px;top:17px;
- background:#b8d1bf;
- pointer-events:none;
-}
-.bulk-form .bulk-task-row[open] .bulk-panel-context{
- display:flex;
- align-items:baseline;
- gap:8px;
- padding:0 0 5px;
- border:0;
-}
-.bulk-form .bulk-task-row[open] .bulk-panel-context span{
- color:#6c8772;font-size:11px;
-}
-.bulk-form .bulk-task-row[open] .bulk-panel-context strong{
- color:#3e654c;
- font-size:12px;
-}
-.bulk-form .bulk-task-row[open] .bulk-subsection{
- border:0;
- background:transparent;
- border-radius:0;
-}
-@media(max-width:640px){
- .bulk-form .bulk-task-row[open]>.bulk-summary{
-  padding:10px 3px;
- }
- .bulk-form .bulk-task-row[open]>.bulk-summary::after{
-  left:12px;
- }
- .bulk-form .bulk-task-row[open]>.bulk-panel{
-  padding:10px 2px 14px 21px;
- }
- .bulk-form .bulk-task-row[open]>.bulk-panel::before{
-  left:12px;
- }
- .bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-panel-context::before,
- .bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-inline-fields::before,
- .bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-subsection::before,
- .bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-row-options::before{
-  left:-9px;width:9px;
- }
-}
 
 /* Unified no-subitem daily checkbox interaction (v36).
    Keep a single-task title check visually identical to other child checkboxes. */
@@ -2164,4 +2025,68 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 }
 .view-child .child-work .task .task-single-check:disabled{
  opacity:1;cursor:default;
+}
+
+/* Shared bulk-editor accordion: one thin outline for daily tasks and bonuses.
+   Keep the expanded row's heading visible, without a second title or tree lines. */
+.bulk-form .bulk-list{gap:9px}
+.bulk-form .bulk-row,
+.bulk-form .bulk-row[open],
+.bulk-form .bulk-row:last-child{
+ display:block!important;
+ overflow:visible;
+ margin:0;
+ padding:0;
+ background:#fff;
+ border:1px solid #dce6df;
+ border-radius:10px;
+ box-shadow:none;
+}
+.bulk-form .bulk-row[open],
+.bulk-form .bulk-row[open]:last-child{
+ border-color:#b6d0bd;
+ background:#fff;
+ box-shadow:none;
+}
+.bulk-form .bulk-row>.bulk-summary{
+ position:static;
+ z-index:auto;
+ display:flex;
+ align-items:center;
+ min-height:59px;
+ padding:11px 12px;
+ background:transparent;
+ border:0;
+ border-radius:9px;
+}
+.bulk-form .bulk-row[open]>.bulk-summary{
+ position:static;
+ border:0;
+ border-bottom:1px solid #e3ece5;
+ border-radius:9px 9px 0 0;
+ background:#f7faf8;
+ padding:11px 12px;
+}
+.bulk-form .bulk-row[open]>.bulk-panel{
+ display:grid;
+ position:static;
+ gap:12px;
+ padding:13px 13px 16px;
+ border:0;
+ border-radius:0 0 9px 9px;
+ background:#fff;
+ box-shadow:none;
+}
+.bulk-form .bulk-row[open]>.bulk-summary::before,
+.bulk-form .bulk-row[open]>.bulk-summary::after,
+.bulk-form .bulk-row[open]>.bulk-panel::before,
+.bulk-form .bulk-row[open]>.bulk-panel::after{
+ content:none;
+}
+.bulk-form .bulk-panel-context{display:none}
+@media(max-width:640px){
+ .bulk-form .bulk-list{gap:8px}
+ .bulk-form .bulk-row>.bulk-summary,
+ .bulk-form .bulk-row[open]>.bulk-summary{padding:10px 9px}
+ .bulk-form .bulk-row[open]>.bulk-panel{padding:12px 10px 14px}
 }
