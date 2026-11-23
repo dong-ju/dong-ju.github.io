@@ -2222,30 +2222,8 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  #bulkDetailModal .bulk-detail-scroll{padding:20px 13px 15px}
  #bulkDetailModal .bulk-detail-footer{padding:11px 13px 14px}
  #modal .bulk-form .bulk-list>.bulk-row{padding:6px 2px}
- /* Parent and child share the same phone-width and card spacing. */
- .wrap.view-parent,.wrap.view-child{
-  width:calc(100% - 24px);
-  max-width:none;
-  padding-top:14px;
-  padding-bottom:60px;
- }
- .wrap.view-parent>.top,.wrap.view-child>.top{margin-bottom:14px}
- .view-parent .group,.view-child .child-work>.group{
-  margin-bottom:16px;
- }
- .view-parent .group-head,.view-child .child-work .group-head{
-  margin-bottom:10px;
- }
- .view-parent .group-head h2,.view-child .child-work .group-head h2{
-  font-size:18px;line-height:1.35;
- }
- .view-parent .task,.view-child .child-work .task{
-  padding:13px 13px;border-radius:13px;
- }
- .view-parent .task-name,.view-child .child-work .task .task-name{
-  font-size:16px;line-height:1.35;
- }
- .view-child .child-work{margin-top:14px}
+ /* Shared phone component sizing is centralized in v39 rules below. */
+.view-child .child-work{margin-top:14px}
 }
 /* Check completion + reward align vertically with the check label. */
 .view-child.screen-today .child-work .task .task-top{
@@ -2313,5 +2291,98 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  #bulkDetailModal .bulk-form .bulk-subitem>.subgroup-picker-trigger{
   font-size:12px;
   padding-left:6px;padding-right:3px;
+ }
+}
+
+/* v39: shared slim mobile components for both roles.
+   Parent group rhythm: 22px; child card rhythm: 11px; child indentation: 7px. */
+@media(max-width:639px){
+ .wrap:is(.view-parent,.view-child).screen-today{
+  --habit-group-gap:22px;
+  --habit-item-gap:11px;
+  --habit-card-y:12px;
+  --habit-card-x:13px;
+  --habit-indent:7px;
+  width:calc(100% - 24px);
+  max-width:none;
+  padding:14px 0 60px;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today>.top{margin-bottom:14px}
+ .wrap.view-parent.screen-today>.habit-group,
+ .wrap.view-child.screen-today .child-work>.habit-group{
+  margin:0 0 var(--habit-group-gap);
+  min-width:0;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-group-head{
+  margin:0 0 10px;
+  padding:0 3px;
+  gap:10px;
+  align-items:center;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-group-head h2{
+  margin:0;
+  font-size:17px;
+  font-weight:740;
+  line-height:1.35;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-item-list{gap:var(--habit-item-gap)}
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card{
+  min-width:0;
+  padding:var(--habit-card-y) var(--habit-card-x);
+  border-radius:13px;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card .task-top{
+  display:flex;align-items:center;gap:7px;min-width:0;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card:not(.one-time-item) .task-top{
+  flex-wrap:nowrap;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card .task-label{
+  min-width:0;min-height:43px;gap:8px;flex:1 1 0;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card .task-name{
+  font-size:16px;line-height:1.35;font-weight:700;
+  word-break:keep-all;overflow-wrap:anywhere;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card :is(.task-label .dot,.habit-subitem .dot){
+  display:inline-flex;align-items:center;justify-content:center;
+  width:25px;height:25px;flex:0 0 25px;
+  border-radius:7px;font-size:16px;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card .subtasks{
+  margin-top:8px;padding-top:7px;gap:2px;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card .habit-subitem{
+  min-height:43px;
+  padding:7px 4px 7px var(--habit-indent);
+  gap:9px;font-size:14px;line-height:1.4;
+  word-break:keep-all;overflow-wrap:anywhere;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card .right{
+  display:inline-flex;align-items:center;justify-content:flex-end;
+  flex-wrap:nowrap;flex:0 0 auto;gap:6px;margin-left:auto;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card .reward{
+  font-size:14px;line-height:1.35;white-space:nowrap;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card .state{
+  font-size:11px;line-height:1.4;padding:4px 6px;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .balance.balance-compact{
+  grid-template-columns:minmax(0,1fr) auto;
+  min-height:85px;padding:14px 17px;gap:10px 14px;border-radius:14px;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .balance.balance-compact .balance-number{
+  font-size:clamp(25px,3.3vw,36px);line-height:1.14;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card.one-time-item{
+  display:block;grid-template-columns:none;grid-template-rows:none;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card.one-time-item .task-top{flex-wrap:wrap}
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card.one-time-item .one-time-label-text{
+  display:flex;flex-direction:column;gap:4px;min-width:0;
+ }
+ .wrap:is(.view-parent,.view-child).screen-today .habit-card.one-time-item .one-time-date{
+  font-size:12px;line-height:1.35;color:#728577;
  }
 }
