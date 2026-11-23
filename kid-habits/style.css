@@ -2386,3 +2386,12 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
   font-size:12px;line-height:1.35;color:#728577;
  }
 }
+
+/* v40: keep first-level daily task titles unchanged when checked.
+   Approved / pending / pressed / hovered states still update the checkmark,
+   while the original title color stays the same in both modes. */
+.wrap:is(.view-parent,.view-child).screen-today
+ .habit-group .habit-card.task:not(.one-time-item)
+ .task-label .task-name{
+ color:#23322c;
+}
