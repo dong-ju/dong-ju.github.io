@@ -576,8 +576,7 @@ const dragRules={
  tasks:{row:".bulk-task-row",parent:"#bulkTasks"},
  bonuses:{row:".bulk-bonus-row",parent:"#bulkBonuses"},
  subitems:{row:".bulk-subitem",parent:".bulk-subitems"},
- sections:{row:".bulk-section-order-row",parent:"#bulkSections"},
- oneTime:{row:".bulk-one-time-row",parent:".bulk-one-time-edit-list"}
+ sections:{row:".bulk-section-order-row",parent:"#bulkSections"}
 };
 let activeDrag=null;
 function dragItems(container,rule){
@@ -1178,7 +1177,13 @@ function registration(){
 
 /* Dated tasks share the daily card design but never grant reward minutes. */
 function renderOneTimeTasks(d,r){
- const all=Array.isArray(d.oneTimeTasks)?d.oneTimeTasks.filter(t=>t&&t.id&&t.title&&t.dueOn):[];
+ // Dated tasks follow their registration order. Existing list order is the
+ // fallback when a legacy item has no creation timestamp.
+ const all=Array.isArray(d.oneTimeTasks)?d.oneTimeTasks.filter(t=>t&&t.id&&t.title&&t.dueOn).sort((a,b)=>{
+  const timestamp=t=>Date.parse(t.createdAt||t.created_at||t.createdOn||t.created_on||"");
+  const first=timestamp(a),second=timestamp(b);
+  return Number.isFinite(first)&&Number.isFinite(second)?first-second:0;
+ }):[];
  const pending=all.filter(t=>!t.completedAt),completed=all.filter(t=>t.completedAt);
  const isParent=r==="parent";
  const card=t=>{
@@ -1454,23 +1459,15 @@ function bulkBonusRow(item){
   '<div class="bulk-row-options"><label class="bulk-active"><input type="checkbox" name="bonus-active" '+(b.active!==false?"checked":"")+'> 사용하기</label>'+
   (!item?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></details>';
 }
-function bulkOneTimeRow(t){
- return '<div class="bulk-one-time-row" data-id="'+safe(t.id)+'">'+
-  dragHandle("oneTime",t.title)+
-  '<span class="bulk-one-time-content"><strong>'+safe(t.title)+'</strong>'+
-   '<small>'+safe(dateLabel(t.dueOn))+'</small></span></div>';
-}
 function bulkEditor(initialTab="tasks"){
  requireParent();
  closeSubgroupPicker();
  const d=read(),habits=d.habits.filter(h=>!h.moved_to_parent_bonus).sort((a,b)=>a.sort_order-b.sort_order);
- const oneTime=Array.isArray(d.oneTimeTasks)?d.oneTimeTasks.filter(t=>t&&t.id&&t.title&&t.dueOn):[];
  const choices={habits:"매일 할 일",oneTime:"할 일",bonuses:"상벌 보너스"};
  open('<form id="bulkForm" class="form bulk-form" data-dirty="0">'+
   '<div class="bulk-editor-head"><h2>항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
   '<div class="bulk-tabs" role="tablist" aria-label="편집할 항목">'+
   '<button type="button" role="tab" aria-selected="true" class="bulk-tab active" data-action="bulk-tab" data-panel="tasks">매일 할 일 <small>'+habits.length+'</small></button>'+
-  '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="oneTime">할 일 <small>'+oneTime.length+'</small></button>'+
   '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button></div>'+
   '<details class="bulk-screen-order"><summary>화면 표시 순서 <span>정렬</span></summary>'+
    '<div id="bulkSections" class="bulk-section-order-list">'+displaySections(d).map(id=>
@@ -1480,12 +1477,6 @@ function bulkEditor(initialTab="tasks"){
   '<section class="bulk-section" id="bulkPanelTasks" data-bulk-panel="tasks" role="tabpanel">'+
    '<div class="bulk-section-head"><span>수정할 항목을 선택하세요</span>'+el("+ 매일 할 일","tiny","bulk-add-task")+'</div>'+
    '<div id="bulkTasks" class="bulk-list">'+habits.map(bulkTaskRow).join("")+'</div></section>'+
-  '<section class="bulk-section" id="bulkPanelOneTime" data-bulk-panel="oneTime" role="tabpanel" hidden>'+
-   '<div class="bulk-section-head"><span>할 일 표시 순서</span></div>'+
-   '<div class="bulk-one-time-edit-list" data-status="pending">'+oneTime.filter(t=>!t.completedAt).map(bulkOneTimeRow).join("")+'</div>'+
-   (oneTime.some(t=>t.completedAt)?'<div class="bulk-section-head"><span>완료한 할 일</span></div>'+
-    '<div class="bulk-one-time-edit-list" data-status="completed">'+oneTime.filter(t=>t.completedAt).map(bulkOneTimeRow).join("")+'</div>':"")+
-  '</section>'+
   '<section class="bulk-section" id="bulkPanelBonuses" data-bulk-panel="bonuses" role="tabpanel" hidden>'+
    '<div class="bulk-section-head"><span>수정할 상벌을 선택하세요</span>'+el("+ 상벌","tiny","bulk-add-bonus")+'</div>'+
    '<div id="bulkBonuses" class="bulk-list">'+d.bonusItems.map(bulkBonusRow).join("")+'</div></section>'+
@@ -1495,7 +1486,7 @@ function bulkEditor(initialTab="tasks"){
 }
 function bulkSetTab(name){
  closeSubgroupPicker();
- const form=document.getElementById("bulkForm");if(!form||!["tasks","oneTime","bonuses"].includes(name))return;
+ const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses"].includes(name))return;
  form.querySelectorAll("[data-bulk-panel]").forEach(panel=>{
   panel.hidden=panel.dataset.bulkPanel!==name;
  });
@@ -1597,14 +1588,7 @@ function saveBulkEditor(form){
  if(screenOrder.length!==3||new Set(screenOrder).size!==3||
     screenOrder.some(id=>!["habits","oneTime","bonuses"].includes(id)))
   throw Error("화면 구역 정렬을 확인해주세요.");
- const existingOneTime=Array.isArray(d.oneTimeTasks)?d.oneTimeTasks.filter(t=>t&&t.id&&t.title&&t.dueOn):[];
- const oneTimeIds=Array.from(form.querySelectorAll(".bulk-one-time-edit-list .bulk-one-time-row")).map(node=>node.dataset.id);
- const byId=new Map(existingOneTime.map(t=>[t.id,t]));
- if(oneTimeIds.length!==existingOneTime.length||new Set(oneTimeIds).size!==oneTimeIds.length||
-    oneTimeIds.some(id=>!byId.has(id)))
-  throw Error("할 일 목록이 변경되었습니다. 다시 열어주세요.");
  d.displaySections=screenOrder;
- d.oneTimeTasks=oneTimeIds.map(id=>byId.get(id));
  d.habits=[...updatedTasks,...d.habits.filter(x=>x.moved_to_parent_bonus)];
  d.bonusItems=updatedBonuses;
  save(d);render();
