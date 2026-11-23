@@ -689,6 +689,17 @@ function renderTask(d,h,day,r){
   done=new Set(checked(d,h.id,day)),isParent=r==="parent",state=status(c),
   complete=c?.status==="approved",pending=c?.status==="pending",
   allTicked=complete||(items.length>0?taskUnitsDone(h,done):pending);
+ // For legacy approved records, restore visible ticks from saved item titles
+ // only if the original subcheck ID list is unavailable.
+ if(complete&&items.length&&!done.size){
+  const snapshots=Array.isArray(c?.completed_items)?c.completed_items:
+    Array.isArray(c?.confirmed_items)?c.confirmed_items:[];
+  const remaining=new Set(items.map(item=>item.id));
+  for(const snap of snapshots){
+   const item=items.find(candidate=>remaining.has(candidate.id)&&candidate.title===snap.title);
+   if(item){done.add(item.id);remaining.delete(item.id);}
+  }
+ }
  const checkedMark='<span class="dot '+(allTicked?"on":"")+'">'+(allTicked?"✓":"")+'</span>';
  const label='<span class="task-name">'+safe(h.title)+'</span>';
  const titleRow=!isParent&&items.length===0?
@@ -697,7 +708,7 @@ function renderTask(d,h,day,r){
  const actions=[];
  // Editing is available in one separate parent settings window.
  let detail="";
- if(items.length&&(isParent||!complete)){
+ if(items.length){
   const units=taskUnits(h);
   detail='<div class="subtasks grouped-subtasks">'+units.map(unit=>{
    const isGroup=!!unit.title,selected=unit.items.some(item=>done.has(item.id));
@@ -719,7 +730,7 @@ function renderTask(d,h,day,r){
  let actionsBottom="";
  if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+'</div>';
  else if(isParent&&complete&&sameActionDay(c?.reviewed_at))actionsBottom='<div class="task-foot">'+el("완료 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
- return '<article data-habit-id="'+safe(h.id)+'" class="task habit-card '+(complete?"task-done":pending?"task-checked":c?.status==="rejected"?"task-retry":"")+'"><div class="task-top">'+titleRow+
+ return '<article data-habit-id="'+safe(h.id)+'" class="task habit-card '+(items.length?"task-has-subitems ":"")+(complete?"task-done":pending?"task-checked":c?.status==="rejected"?"task-retry":"")+'"><div class="task-top">'+titleRow+
   '<div class="right">'+(state?'<span class="state '+(complete?"done":"")+'">'+state+'</span>':'')+
   '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
   detail+actionsBottom+'</article>';
