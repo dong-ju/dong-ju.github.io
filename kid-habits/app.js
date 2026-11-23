@@ -1711,6 +1711,13 @@ document.addEventListener("keydown",event=>{
  if(event.key==="Escape"){
   event.preventDefault();event.stopImmediatePropagation();closeSubgroupPicker(true);return;
  }
+ const focusables=Array.from(dialog.querySelectorAll(".subgroup-picker-panel button"));
+ if(event.key==="Tab"&&focusables.length){
+  const first=focusables[0],last=focusables[focusables.length-1];
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
+  else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
+  return;
+ }
  if(!["ArrowDown","ArrowUp"].includes(event.key))return;
  const options=Array.from(dialog.querySelectorAll(".subgroup-picker-option"));
  const i=options.indexOf(document.activeElement);
@@ -1869,6 +1876,11 @@ document.addEventListener("change",e=>{
  bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
 });
 dialog.addEventListener("cancel",e=>{
+ if(activeSubgroupPicker){
+  e.preventDefault();
+  closeSubgroupPicker(true);
+  return;
+ }
  if(document.getElementById("bulkForm")?.dataset.dirty==="1"&&!confirm("저장하지 않은 변경사항을 버릴까요?"))e.preventDefault();
 });
 document.addEventListener("change",async e=>{
