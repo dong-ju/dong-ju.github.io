@@ -1145,18 +1145,18 @@ function renderOneTimeTasks(d,r){
   const canComplete=r==="child"&&serverDevice?.role==="child";
   const attrs='data-id="'+safe(t.id)+'"';
   return '<article data-id="'+safe(t.id)+'" class="one-time-item '+(done?"is-done":overdue?"is-overdue":"")+'">'+
+   (r==="parent"?dragHandle("oneTime",t.title):"")+
    '<div class="one-time-detail"><strong>'+safe(t.title)+'</strong>'+
    '<small>'+safe(dateLabel(t.dueOn))+
    (overdue?" · 기한 지남":done?" · 완료":"")+'</small></div>'+
    '<div class="one-time-actions">'+
    (canComplete?el(done?"완료 취소":"완료",done?"tiny":"primary","one-time-toggle",attrs):"")+
-   (r==="parent"?dragHandle("oneTime",t.title):"")+
    (editable?el("수정","tiny","one-time-edit",attrs)+el("삭제","tiny","one-time-delete",attrs):"")+
    '</div></article>';
  };
  return '<section class="group one-time-group" '+(r==="parent"?'data-section-id="oneTime" ':'')+'aria-label="1회성 할 일">'+
-  '<div class="group-head"><h2>1회성 할 일</h2><div class="section-head-actions">'+
-  (r==="parent"?dragHandle("sections","1회성 할 일"):"")+
+  '<div class="group-head">'+(r==="parent"?dragHandle("sections","1회성 할 일"):"")+
+  '<h2>1회성 할 일</h2><div class="section-head-actions">'+
   el("+ 등록","tiny one-time-add","one-time-add")+'</div></div>'+
   '<div class="one-time-list">'+
    '<div class="one-time-drag-group" data-status="pending">'+
@@ -1224,11 +1224,11 @@ function render(){
    '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+
    el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
    el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
- const taskGroup='<section class="group" '+(r==="parent"?'data-section-id="habits"':'')+'><div class="group-head"><h2>할 일</h2>'+
-  (r==="parent"?dragHandle("sections","할 일"):"")+
+ const taskGroup='<section class="group" '+(r==="parent"?'data-section-id="habits"':'')+'><div class="group-head">'+
+  (r==="parent"?dragHandle("sections","할 일"):"")+'<h2>할 일</h2>'+
   '</div><div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
- const bonusGroup=r==="parent"?'<section class="group" data-section-id="bonuses"><div class="group-head"><h2>추가 상벌 보너스</h2>'+
-  dragHandle("sections","추가 상벌 보너스")+'</div>'+
+ const bonusGroup=r==="parent"?'<section class="group" data-section-id="bonuses"><div class="group-head">'+
+  dragHandle("sections","추가 상벌 보너스")+'<h2>추가 상벌 보너스</h2></div>'+
   '<div class="bonus-list">'+d.bonusItems.map(item=>{
    const amount=(item.minutes>0?"+":"")+item.minutes+"분";
    return '<article class="bonus-entry '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
@@ -1277,12 +1277,12 @@ function bulkTaskRow(h){
  const subs=(e.items||[]).map(item=>bulkSubRow(item,groups)).join("");
  const groupsUI=groups.map(g=>bulkGroupRow(g)).join("");
  return '<details name="bulk-tasks" class="bulk-row bulk-task-row" data-created="'+(!h?"1":"0")+'" '+(!h?"open":"")+'>'+
-  '<summary class="bulk-summary"><span class="bulk-summary-left">'+
+  '<summary class="bulk-summary">'+dragHandle("tasks",e.title||"새 할 일")+
+  '<span class="bulk-summary-left">'+
   '<strong class="bulk-summary-title">'+safe(e.title||"새 할 일")+'</strong>'+
   '<small class="bulk-summary-extra">+'+e.reward_minutes+'분 · '+(e.items.length?e.items.length+"개 하위 항목":"단일 체크")+
   (groups.length?" · "+groups.length+"개 묶음":"")+'</small>'+
-  '</span>'+dragHandle("tasks",e.title||"새 할 일")+
-  '<span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
+  '</span><span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
   foldChevron()+'</summary>'+
   '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
   '<div class="bulk-inline-fields"><label>할 일 이름<input name="task-title" maxlength="80" value="'+safe(e.title)+'"></label>'+
@@ -1307,6 +1307,7 @@ function bulkSubRow(item,groups=[]){
  const group=typeof item==="object"?String(item?.group||"").trim():"";
  const selected=groups.find(x=>x.title===group),choice=selected?.id||"";
  return '<div class="bulk-subitem" data-item-id="'+safe(id)+'">'+
+  dragHandle("subitems",title||"하위 항목")+
   '<input type="text" name="sub-title" aria-label="하위 항목 이름" maxlength="48" placeholder="하위 항목 이름" value="'+safe(title)+'">'+
   '<select name="sub-group" class="subgroup-native-select" aria-hidden="true" tabindex="-1">'+
   '<option value="">필수</option>'+
@@ -1316,7 +1317,7 @@ function bulkSubRow(item,groups=[]){
    '<span class="subgroup-picker-value">'+safe(selected?.title||"필수")+'</span>'+
    '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>'+
   '</button>'+
-  '<span class="bulk-row-control-group">'+dragHandle("subitems",title||"하위 항목")+
+  '<span class="bulk-row-control-group">'+
   el("×","tiny muted","bulk-remove-sub",'aria-label="하위 항목 삭제"')+'</span></div>';
 }
 function bulkGroupDefinitions(row){
@@ -1391,11 +1392,11 @@ function selectSubgroupPicker(value){
 function bulkBonusRow(item){
  const b=item||{id:"",title:"",minutes:10,active:true};
  return '<details name="bulk-bonuses" class="bulk-row bulk-bonus-row" data-created="'+(!item?"1":"0")+'" '+(!item?"open":"")+'>'+
-  '<summary class="bulk-summary"><span class="bulk-summary-left">'+
+  '<summary class="bulk-summary">'+dragHandle("bonuses",b.title||"새 상벌")+
+  '<span class="bulk-summary-left">'+
   '<strong class="bulk-summary-title">'+safe(b.title||"새 상벌")+'</strong>'+
   '<small class="bulk-summary-extra '+(b.minutes>0?"positive":"negative")+'">'+(b.minutes>0?"+":"")+b.minutes+'분</small>'+
-  '</span>'+dragHandle("bonuses",b.title||"새 상벌")+
-  '<span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
+  '</span><span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
   foldChevron()+'</summary>'+
   '<div class="bulk-panel"><input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
   '<label>상벌 이름<input name="bonus-title" maxlength="80" value="'+safe(b.title)+'"></label>'+
