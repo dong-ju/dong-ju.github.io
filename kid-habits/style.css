@@ -2138,9 +2138,9 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  max-width:540px;
  max-height:min(88dvh,850px);
  margin:auto;padding:0;
- border:1px solid #e1e9e3;border-radius:17px;
+ border:0;outline:0;border-radius:17px;
  background:#fff;color:#293e30;
- box-shadow:0 18px 55px rgba(23,40,26,.22);
+ box-shadow:0 12px 38px rgba(23,40,26,.13);
  overflow:hidden;
 }
 #bulkDetailModal[open]{
@@ -2150,7 +2150,7 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 #bulkDetailModal .bulk-detail-head{
  display:flex;align-items:center;justify-content:space-between;
  gap:10px;flex:0 0 auto;
- padding:17px 19px 13px;border-bottom:1px solid #e9eee9;
+ padding:19px 19px 19px;border-bottom:1px solid #edf2ee;
 }
 #bulkDetailModal .bulk-detail-head small{
  display:block;font-size:12px;font-weight:660;color:#738878;margin-bottom:3px;
@@ -2168,7 +2168,7 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  display:block;flex:1 1 auto;min-height:0;
  overflow-y:auto;overflow-x:hidden;
  overscroll-behavior:contain;
- padding:16px 19px;
+ padding:22px 19px 18px;
 }
 #bulkDetailModal .bulk-detail-content{
  display:block;
@@ -2202,8 +2202,8 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
   width:calc(100vw - 18px);max-height:90dvh;
   border-radius:14px;
  }
- #bulkDetailModal .bulk-detail-head{padding:13px 14px 11px}
- #bulkDetailModal .bulk-detail-scroll{padding:13px 13px}
+ #bulkDetailModal .bulk-detail-head{padding:16px 14px 17px}
+ #bulkDetailModal .bulk-detail-scroll{padding:20px 13px 15px}
  #bulkDetailModal .bulk-detail-footer{padding:11px 13px 14px}
  #modal .bulk-form .bulk-list>.bulk-row{padding:5px 8px}
  /* Parent and child share the same phone-width and card spacing. */
@@ -2254,4 +2254,48 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 .view-child.screen-today .child-work .task.task-checked:has(.task-single-check),
 .view-child.screen-today .child-work .task.task-done:has(.task-single-check){
  background:#fff!important;box-shadow:none!important;
+}
+
+/* Detail editor: no native focus ring around the dialog, only controls. */
+#bulkDetailModal:focus,
+#bulkDetailModal:focus-visible,
+#bulkDetailModal .bulk-detail-head h2:focus{outline:0}
+#bulkDetailModal .bulk-detail-head>div{min-width:0}
+#bulkDetailModal .bulk-detail-head h2{line-height:1.45}
+/* Prioritize the item name field over the grouping picker on phones. */
+#bulkDetailModal .bulk-form .bulk-subitem{
+ grid-template-columns:28px minmax(0,1fr) 100px 28px;
+ grid-template-rows:minmax(42px,auto);
+ column-gap:5px;
+}
+#bulkDetailModal .bulk-form .bulk-subitem>input[name="sub-title"]{
+ grid-column:2;grid-row:1;
+ width:100%;min-width:0;box-sizing:border-box;
+ padding-left:10px;padding-right:8px;
+}
+#bulkDetailModal .bulk-form .bulk-subitem>.subgroup-picker-trigger{
+ grid-column:3;grid-row:1;
+ width:100%;min-width:0;
+ padding-left:7px;padding-right:5px;
+}
+#bulkDetailModal .bulk-form .bulk-subitem>.bulk-row-control-group{
+ grid-column:4;grid-row:1;
+}
+#bulkDetailModal .bulk-form .bulk-subitem>.drag-handle{
+ grid-column:1;grid-row:1;
+ min-width:28px;width:28px;
+}
+@media(max-width:639px){
+ #bulkDetailModal .bulk-form .bulk-subitem{
+  grid-template-columns:28px minmax(0,1fr) 84px 28px;
+  column-gap:4px;
+ }
+ #bulkDetailModal .bulk-form .bulk-subitem>input[name="sub-title"]{
+  font-size:14px;
+  padding-left:8px;padding-right:6px;
+ }
+ #bulkDetailModal .bulk-form .bulk-subitem>.subgroup-picker-trigger{
+  font-size:12px;
+  padding-left:6px;padding-right:3px;
+ }
 }
