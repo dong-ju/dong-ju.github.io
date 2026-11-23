@@ -1931,8 +1931,8 @@ document.addEventListener("click",e=>{
    bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="bulk-remove"&&role()==="parent"&&t.closest(".bulk-row")?.dataset.created==="1"){
-   t.closest(".bulk-row").remove();
-   bulkDirty(document.getElementById("bulkForm"));
+   if(activeBulkDetail?.row===t.closest(".bulk-row"))closeBulkDetail(false);
+   else{t.closest(".bulk-row").remove();bulkDirty(document.getElementById("bulkForm"));}
   }
   else if(act==="one-time-add"){oneTimeEditor(null);}
   else if(act==="one-time-edit"){
