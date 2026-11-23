@@ -1974,3 +1974,8 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  .bulk-form .bulk-row[open]>.bulk-panel{padding:9px 5px 15px 9px}
  .bulk-form .bulk-row[open]>.bulk-summary{padding:11px 7px 11px 4px}
 }
+
+/* Keep drag handles inside the edit dialog only (v32).
+   A stale/legacy browse template must never expose editing controls. */
+#app .drag-handle{display:none!important}
+#modal .bulk-form .drag-handle{display:inline-flex}
