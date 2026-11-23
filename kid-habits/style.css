@@ -1293,3 +1293,26 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
   min-width:75px;min-height:40px;padding:8px 10px;font-size:12px
  }
 }
+
+/* Reward-free one-time family tasks */
+.one-time-group{margin-top:16px}
+.one-time-group .group-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.one-time-hint{font-size:12px;line-height:1.5;color:#66786c;margin:4px 0 12px}
+.one-time-list{display:flex;flex-direction:column;gap:8px}
+.one-time-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 13px;border:1px solid #e1e9e1;border-radius:12px;background:#fff}
+.one-time-item.is-done{background:#f7f9f7}
+.one-time-item.is-done .one-time-detail strong{text-decoration:line-through;color:#637368}
+.one-time-item.is-overdue{border-color:#e9c8aa}
+.one-time-detail{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}
+.one-time-detail strong{font-size:14px;font-weight:720;overflow-wrap:anywhere;color:#253b2c}
+.one-time-detail small{font-size:12px;color:#64766b}
+.one-time-item.is-overdue .one-time-detail small{color:#a85b34}
+.one-time-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.one-time-actions button{font-size:12px;min-height:34px;padding:6px 9px;border-radius:8px}
+.one-time-subhead{font-size:12px;font-weight:700;margin:8px 0 2px;color:#718273}
+.one-time-empty{margin:0;padding:16px 12px;border:1px dashed #d7e3d7;border-radius:10px;color:#7b8b7c;font-size:13px;text-align:center}
+@media(max-width:500px){
+ .one-time-item{align-items:stretch;flex-direction:column;gap:9px}
+ .one-time-actions{justify-content:flex-start}
+ .one-time-actions button{min-height:38px}
+}
