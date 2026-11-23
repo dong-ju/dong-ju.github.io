@@ -980,21 +980,19 @@ function registration(){
  '</section></main>';
 }
 
-/* One-time tasks are not habits: no reward, approval, ledger or repetition. */
+/* One-time tasks are for the child only; parent and child may register them. */
 function renderOneTimeTasks(d,r){
  const all=Array.isArray(d.oneTimeTasks)?d.oneTimeTasks.filter(t=>t&&t.id&&t.title&&t.dueOn):[];
- const visible=r==="child"?all.filter(t=>t.assignee==="child"):all;
- const pending=visible.filter(t=>!t.completedAt).sort((a,b)=>a.dueOn.localeCompare(b.dueOn)||(a.dueTime||"").localeCompare(b.dueTime||""));
- const completed=visible.filter(t=>t.completedAt).sort((a,b)=>String(b.completedAt).localeCompare(String(a.completedAt))).slice(0,5);
+ const pending=all.filter(t=>!t.completedAt).sort((a,b)=>a.dueOn.localeCompare(b.dueOn));
+ const completed=all.filter(t=>t.completedAt).sort((a,b)=>String(b.completedAt).localeCompare(String(a.completedAt))).slice(0,5);
  const card=t=>{
   const done=!!t.completedAt,overdue=!done&&t.dueOn<seoulToday();
   const editable=r==="parent"||t.creatorRole==="child";
-  const canComplete=r==="parent"||t.assignee==="child";
-  const by=t.assignee==="parent"?"부모":"아이";
+  const canComplete=r==="child"&&serverDevice?.role==="child";
   const attrs='data-id="'+safe(t.id)+'"';
   return '<article class="one-time-item '+(done?"is-done":overdue?"is-overdue":"")+'">'+
    '<div class="one-time-detail"><strong>'+safe(t.title)+'</strong>'+
-   '<small>'+safe(by)+' · '+safe(dateLabel(t.dueOn))+(t.dueTime?" "+safe(t.dueTime):"")+
+   '<small>'+safe(dateLabel(t.dueOn))+
    (overdue?" · 기한 지남":done?" · 완료":"")+'</small></div>'+
    '<div class="one-time-actions">'+
    (canComplete?el(done?"완료 취소":"완료",done?"tiny":"primary","one-time-toggle",attrs):"")+
@@ -1003,24 +1001,17 @@ function renderOneTimeTasks(d,r){
  };
  return '<section class="group one-time-group" aria-label="1회성 할 일">'+
   '<div class="group-head"><h2>1회성 할 일</h2>'+el("+ 등록","tiny one-time-add","one-time-add")+'</div>'+
-  '<p class="one-time-hint">반복과 보상 없이 한 번만 처리하는 할 일입니다.</p>'+
   '<div class="one-time-list">'+
-   (pending.length?pending.map(card).join(""):'<p class="one-time-empty">진행 중인 1회성 할 일이 없습니다.</p>')+
+   (pending.length?pending.map(card).join(""):'<p class="one-time-empty">진행 중인 할 일이 없습니다.</p>')+
    (completed.length?'<div class="one-time-subhead">최근 완료</div>'+completed.map(card).join(""):"")+
   '</div></section>';
 }
 function oneTimeEditor(task){
- const r=role(),day=task?.dueOn||seoulToday(),time=task?.dueTime||"";
+ const day=task?.dueOn||seoulToday();
  open('<form id="oneTimeForm" class="form"><h2>'+(task?"1회성 할 일 수정":"1회성 할 일 등록")+'</h2>'+
-  '<p class="one-time-hint">보상이나 부모 승인 없이 담당자가 직접 완료합니다.</p>'+
   '<input name="id" type="hidden" value="'+safe(task?.id||"")+'">'+
-  '<label>할 일 이름<input name="title" maxlength="100" required value="'+safe(task?.title||"")+'" placeholder="예: 준비물 챙기기"></label>'+
-  '<label>할 날짜<input name="dueOn" type="date" required value="'+safe(day)+'"></label>'+
-  '<label>시간 (선택)<input name="dueTime" type="time" value="'+safe(time)+'"></label>'+
-  (r==="parent"?'<label>담당자<select name="assignee">'+
-   '<option value="parent" '+((task?.assignee||"parent")==="parent"?"selected":"")+'>부모</option>'+
-   '<option value="child" '+(task?.assignee==="child"?"selected":"")+'>아이</option>'+
-   '</select></label>':'<input name="assignee" type="hidden" value="child">')+
+  '<label>할 일<input name="title" maxlength="100" required value="'+safe(task?.title||"")+'" placeholder="할 일 입력"></label>'+
+  '<label>날짜<input name="dueOn" type="date" required value="'+safe(day)+'"></label>'+
   '<div class="form-actions">'+el("취소","ghost","close")+
    '<button type="submit" class="primary">저장</button></div></form>');
 }
@@ -1588,8 +1579,7 @@ document.addEventListener("submit",e=>{
   if(f.id==="oneTimeForm"){
    if(!String(v.title||"").trim()||!v.dueOn)throw Error("이름과 날짜를 입력해주세요.");
    const action=v.id?"update":"create";
-   void oneTimeAction(action,{id:v.id,title:String(v.title).trim(),dueOn:v.dueOn,
-     dueTime:v.dueTime||"",assignee:v.assignee},()=>close());
+   void oneTimeAction(action,{id:v.id,title:String(v.title).trim(),dueOn:v.dueOn},()=>close());
    return;
   }
   if(f.id==="bulkForm"){
