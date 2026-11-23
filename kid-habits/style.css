@@ -1978,25 +1978,6 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  font-size:11px;font-weight:680;color:#506b59;
  white-space:nowrap;
 }
-.bulk-form .bulk-one-time-edit-list{
- display:flex;flex-direction:column;gap:0;
- border-top:1px solid #edf1ed;
-}
-.bulk-form .bulk-one-time-row{
- display:flex;align-items:center;gap:9px;
- min-width:0;min-height:54px;
- border-bottom:1px solid #e8eee9;
- padding:7px 2px;
-}
-.bulk-form .bulk-one-time-row .drag-handle{flex:0 0 32px}
-.bulk-form .bulk-one-time-content{
- display:flex;flex-direction:column;gap:3px;min-width:0;
-}
-.bulk-form .bulk-one-time-content strong{
- font-size:14px;color:#364e3d;overflow-wrap:anywhere;
- font-weight:700;
-}
-.bulk-form .bulk-one-time-content small{font-size:12px;color:#809085}
 .bulk-form [data-bulk-panel][hidden]{display:none!important}
 /* Expanded item stays recognizable while scrolling through its contents. */
 .bulk-form .bulk-row[open]>.bulk-summary{
@@ -2038,3 +2019,106 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
    A stale/legacy browse template must never expose editing controls. */
 #app .drag-handle{display:none!important}
 #modal .bulk-form .drag-handle{display:inline-flex}
+
+/* Daily-task editor: a quiet connected outline instead of nested cards.
+   The line and elbows visually join the expanded parent row to its fields. */
+.bulk-form .bulk-task-row[open]{
+ background:transparent;
+ border-bottom:1px solid #d8e3d9;
+ box-shadow:none;
+}
+.bulk-form .bulk-task-row[open]>.bulk-summary{
+ position:relative;
+ top:auto;
+ z-index:auto;
+ background:#f5f9f5;
+ border:0;
+ border-radius:7px;
+ padding:11px 5px;
+}
+.bulk-form .bulk-task-row[open]>.bulk-summary .bulk-summary-title{
+ color:#29543b;
+}
+.bulk-form .bulk-task-row[open]>.bulk-summary::after{
+ content:"";
+ position:absolute;
+ left:16px;bottom:-10px;
+ width:2px;height:15px;
+ background:#b8d1bf;
+ pointer-events:none;
+}
+.bulk-form .bulk-task-row[open]>.bulk-panel{
+ display:grid;
+ position:relative;
+ gap:12px;
+ padding:12px 6px 17px 26px;
+ border:0;
+ background:transparent;
+ box-shadow:none;
+}
+.bulk-form .bulk-task-row[open]>.bulk-panel::before{
+ content:"";
+ position:absolute;
+ left:16px;top:0;bottom:17px;
+ width:2px;
+ border-radius:2px;
+ background:#b8d1bf;
+ pointer-events:none;
+}
+.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-panel-context,
+.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-inline-fields,
+.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-subsection,
+.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-row-options{
+ position:relative;
+ min-width:0;
+}
+.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-panel-context::before,
+.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-inline-fields::before,
+.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-subsection::before,
+.bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-row-options::before{
+ content:"";
+ position:absolute;
+ width:10px;height:2px;
+ left:-10px;top:17px;
+ background:#b8d1bf;
+ pointer-events:none;
+}
+.bulk-form .bulk-task-row[open] .bulk-panel-context{
+ display:flex;
+ align-items:baseline;
+ gap:8px;
+ padding:0 0 5px;
+ border:0;
+}
+.bulk-form .bulk-task-row[open] .bulk-panel-context span{
+ color:#6c8772;font-size:11px;
+}
+.bulk-form .bulk-task-row[open] .bulk-panel-context strong{
+ color:#3e654c;
+ font-size:12px;
+}
+.bulk-form .bulk-task-row[open] .bulk-subsection{
+ border:0;
+ background:transparent;
+ border-radius:0;
+}
+@media(max-width:640px){
+ .bulk-form .bulk-task-row[open]>.bulk-summary{
+  padding:10px 3px;
+ }
+ .bulk-form .bulk-task-row[open]>.bulk-summary::after{
+  left:12px;
+ }
+ .bulk-form .bulk-task-row[open]>.bulk-panel{
+  padding:10px 2px 14px 21px;
+ }
+ .bulk-form .bulk-task-row[open]>.bulk-panel::before{
+  left:12px;
+ }
+ .bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-panel-context::before,
+ .bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-inline-fields::before,
+ .bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-subsection::before,
+ .bulk-form .bulk-task-row[open]>.bulk-panel>.bulk-row-options::before{
+  left:-9px;width:9px;
+ }
+}
