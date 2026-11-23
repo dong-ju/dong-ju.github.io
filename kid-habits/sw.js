@@ -1,8 +1,8 @@
-const CACHE="kid-habits-good-habit-v41",HOME="/kid-habits/";
+const CACHE="kid-habits-good-habit-v42",HOME="/kid-habits/";
 const APP_ASSETS=[
  HOME,
- HOME+"app.js?v=41",
- HOME+"style.css?v=41",
+ HOME+"app.js?v=42",
+ HOME+"style.css?v=42",
  HOME+"app.js",
  HOME+"style.css",
  HOME+"good-habit-icon-512.webp?v=good-habit-v1",
