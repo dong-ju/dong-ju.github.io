@@ -131,7 +131,7 @@ const DEFAULT_BONUSES=[
 ];
 const starter=[
  {id:"morning",title:"아침 할 일",reward_minutes:5,sort_order:1,active:true,items:[{id:"bathroom",title:"소변 보기"},{id:"brush",title:"치카하기"},{id:"wash",title:"세수하기"},{id:"water",title:"물 마시기"}]},
- {id:"study",title:"공부하기",reward_minutes:10,sort_order:2,active:true,rotation:true,items:[{id:"math",title:"수학"},{id:"read",title:"책 읽기"},{id:"dictation",title:"받아쓰기"},{id:"handwriting",title:"바르게 쓰기"}]},
+ {id:"study",title:"공부하기",reward_minutes:10,sort_order:2,active:true,items:[{id:"math",title:"수학"},{id:"read",title:"책 읽기"},{id:"dictation",title:"받아쓰기",group:"쓰기 연습"},{id:"handwriting",title:"바르게 쓰기",group:"쓰기 연습"}]},
  {id:"sleep",title:"잠들기",reward_minutes:5,sort_order:3,active:true,items:[]}
 ];
 function seoulToday(){let p=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(x=>[x.type,x.value]));return p.year+"-"+p.month+"-"+p.day;}
@@ -180,7 +180,14 @@ function migrate(d){
    if(!study.items.some(x=>x.id==="dictation"))study.items.push({id:"dictation",title:"받아쓰기"});
    if(!study.items.some(x=>x.id==="handwriting"))study.items.push({id:"handwriting",title:"바르게 쓰기"});
   }
-  study.rotation=true;
+  const legacyRotation=study.rotation===true||!!combined;
+  if(legacyRotation){
+   study.items.forEach(item=>{
+    if((item.id==="dictation"||item.id==="handwriting")&&!String(item.group||"").trim())
+     item.group="쓰기 연습";
+   });
+  }
+  study.rotation=false;
  }
  d.habits.forEach(h=>{if(!h.created_on)h.created_on=d.started_on;});
  if(d.version<6){
@@ -287,30 +294,29 @@ function cancelLedger(id){
 }
 function requireParent(){if(role()!=="parent")throw Error("부모 화면에서만 사용할 수 있습니다.");}
 function habit(d,hid){const h=d.habits.find(x=>x.id===hid&&x.active);if(!h)throw Error("항목을 찾지 못했습니다.");return h;}
-// Every day: math + reading + one alternating writing activity.
-// The two writing activities swap on fixed two-day blocks, regardless of checks.
-// The date anchor is the household's original start date, identical across devices.
-function studyAssignment(d,day){
- const h=d.habits.find(x=>x.id==="study");
- if(!h)return null;
- const alternates=h.items.filter(x=>x.id==="dictation"||x.id==="handwriting");
- if(alternates.length!==2)return null;
- const anchor=d.started_on||day;
- const blocks=Math.max(0,Math.floor(diffDays(day,anchor)/2));
- const index=blocks%2;
- return {index,since:nextDay(anchor,blocks*2)};
-}
-function shownItems(d,h,day){
- if(h.id==="study"&&h.rotation){
-  const fixed=["math","read"].map(id=>h.items.find(x=>x.id===id)).filter(Boolean);
-  const alternates=["dictation","handwriting"].map(id=>h.items.find(x=>x.id===id)).filter(Boolean);
-  const assignment=studyAssignment(d,day);
-  if(assignment&&fixed.length===2&&alternates.length===2){
-   return [...fixed,alternates[assignment.index]];
+// Each standalone item is mandatory; each named group counts as one requirement.
+function taskUnits(h){
+ const units=[],groups=new Map();
+ for(const item of h.items||[]){
+  const title=String(item.group||"").trim();
+  if(!title){units.push({title:"",items:[item]});continue;}
+  if(!groups.has(title)){
+   const group={title,items:[]};
+   units.push(group);groups.set(title,group);
   }
+  groups.get(title).items.push(item);
  }
- return h.items;
+ return units;
 }
+function selectedTaskItems(h,ids){
+ const done=new Set(ids||[]);
+ return taskUnits(h).map(group=>group.items.find(i=>done.has(i.id))).filter(Boolean);
+}
+function taskUnitsDone(h,ids){
+ const done=new Set(ids||[]);
+ return taskUnits(h).every(group=>group.items.some(i=>done.has(i.id)));
+}
+function shownItems(d,h,day){return h.items||[];}
 function pushCheck(d,h,day){
  let c=check(d,h.id,day);
  if(c&&c.status==="approved")return;
@@ -326,15 +332,20 @@ function toggleItem(hid,itemId){
  const k=checkKey(hid,day),done=new Set(checked(d,hid,day)),stamp=new Date().toISOString();
  if(!d.subcheckTimes[k])d.subcheckTimes[k]={};
  if(done.has(itemId)){done.delete(itemId);delete d.subcheckTimes[k][itemId];}
- else{done.add(itemId);d.subcheckTimes[k][itemId]=stamp;}
+ else{
+  const group=String(items.find(i=>i.id===itemId)?.group||"").trim();
+  if(group)items.filter(i=>String(i.group||"").trim()===group).forEach(i=>{
+   done.delete(i.id);delete d.subcheckTimes[k][i.id];
+  });
+  done.add(itemId);d.subcheckTimes[k][itemId]=stamp;
+ }
  d.subchecks[k]=Array.from(done);
- if(items.every(i=>done.has(i.id))){
+ if(taskUnitsDone(h,done)){
   pushCheck(d,h,day);
-  const c=check(d,hid,day);if(c)c.completed_items=items.map(i=>({title:i.title,at:d.subcheckTimes[k][i.id]||stamp}));
+  const c=check(d,hid,day);if(c)c.completed_items=selectedTaskItems(h,done).map(i=>({title:i.title,at:d.subcheckTimes[k][i.id]||stamp}));
   signalParent(h.title);
  }
  else if(existing&&existing.status==="pending")d.checks=d.checks.filter(x=>x!==existing);
- if(h.rotation)Object.keys(d.studyDays).filter(date=>date>day).forEach(date=>delete d.studyDays[date]);
  save(d);render();
 }
 function submitSimple(hid){
@@ -354,7 +365,7 @@ function review(hid,status){
   c.status="approved";c.awarded_minutes=h.reward_minutes;
   if(!Array.isArray(c.completed_items)){
    const done=new Set(checked(d,h.id,day)),k=checkKey(h.id,day);
-   c.completed_items=shownItems(d,h,day).filter(i=>done.has(i.id)).map(i=>({title:i.title,at:d.subcheckTimes[k]?.[i.id]||c.submitted_at||new Date().toISOString()}));
+   c.completed_items=selectedTaskItems(h,done).map(i=>({title:i.title,at:d.subcheckTimes[k]?.[i.id]||c.submitted_at||new Date().toISOString()}));
   }
   c.confirmed_items=Array.from(c.completed_items);
   log(d,"habit",h.reward_minutes,h.title,day,c.id,{details:c.completed_items});
@@ -420,7 +431,7 @@ function renderTask(d,h,day,r){
  const c=check(d,h.id,day),items=shownItems(d,h,day),
   done=new Set(checked(d,h.id,day)),isParent=r==="parent",state=status(c),
   complete=c?.status==="approved",pending=c?.status==="pending",
-  allTicked=complete||(items.length>0?items.every(item=>done.has(item.id)):pending);
+  allTicked=complete||(items.length>0?taskUnitsDone(h,done):pending);
  const checkedMark='<span class="dot '+(allTicked?"on":"")+'">'+(allTicked?"✓":"")+'</span>';
  const label='<span class="task-name">'+safe(h.title)+'</span>';
  const titleRow=!isParent&&items.length===0?
@@ -429,30 +440,24 @@ function renderTask(d,h,day,r){
  const actions=[];
  // Editing is available in one separate parent settings window.
  let detail="";
- // Keep both daily study tasks visible and checkable.
- // Only dictation and handwriting alternate in fixed two-day blocks.
  if(items.length&&(isParent||!complete)){
-  const visible=h.rotation&&h.items.length>1?h.items:items;
-  const todays=new Set(items.map(item=>item.id));
-  detail='<div class="subtasks '+(h.rotation?"study-list":"")+'">'+visible.map(item=>{
-   const assigned=todays.has(item.id),itemDone=assigned&&(complete||done.has(item.id)),
-    dot='<span class="dot '+(itemDone?"on":"")+'">'+(itemDone?"✓":"")+'</span>';
-   const topic='<span>'+safe(item.title)+'</span>'+
-    (h.rotation&&assigned?'<small class="study-today-chip">오늘</small>':"");
-   if(isParent||!assigned)return '<div class="subitem '+(assigned?"study-current":"study-upcoming")+'">'+dot+topic+'</div>';
-   return '<button type="button" class="subitem selectable study-current" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" '+(complete?"disabled":"")+'>'+dot+topic+'</button>';
+  const units=taskUnits(h);
+  detail='<div class="subtasks grouped-subtasks">'+units.map(unit=>{
+   const isGroup=!!unit.title,selected=unit.items.some(item=>done.has(item.id));
+   const option=item=>{
+    const checkedNow=done.has(item.id),marked=complete&&(isGroup?checkedNow: true)||checkedNow;
+    const dot='<span class="dot '+(marked?"on":"")+'">'+(marked?"✓":"")+'</span>';
+    const label=dot+'<span>'+safe(item.title)+'</span>';
+    return isParent?
+     '<div class="subitem">'+label+'</div>':
+     '<button type="button" class="subitem selectable" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" aria-pressed="'+(marked?"true":"false")+'" '+(complete?"disabled":"")+'>'+label+'</button>';
+   };
+   if(!isGroup)return option(unit.items[0]);
+   return '<div class="subgroup '+(selected||complete?"subgroup-done":"")+'">'+
+    '<div class="subgroup-heading"><strong>'+safe(unit.title)+'</strong>'+
+    '<small>하나만 선택</small></div>'+
+    '<div class="subgroup-options">'+unit.items.map(option).join("")+'</div></div>';
   }).join("")+'</div>';
- }
- if(h.id==="study"&&h.rotation){
-  if(complete){
-   const titles=(c?.completed_items||items).map(x=>x.title).join(" · ");
-   detail+='<div class="study-next">완료한 공부: '+safe(titles)+'</div>';
-  }else{
-   const assigned=studyAssignment(d,day);
-   const nextId=assigned?.index===0?"handwriting":"dictation";
-   const next=h.items.find(x=>x.id===nextId);
-   if(next)detail+='<div class="study-next">수학 · 책 읽기는 매일 <span>· '+safe(next.title)+'와 2일 교대</span></div>';
-  }
  }
  let actionsBottom="";
  if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+'</div>';
@@ -473,16 +478,15 @@ function dailyCompletion(d,active,day){
  relevant.forEach(h=>{
   const available=day<=current&&day>=d.started_on&&day>=(h.created_on||d.started_on);
   const assignedSteps=shownItems(d,h,day);
-  const stepCount=Math.max(1,assignedSteps.length);
+  const stepCount=Math.max(1,taskUnits(h).length);
   if(!available){result.byId[h.id]={status:"out",steps:0,total:stepCount};return;}
   const c=check(d,h.id,day),status=c?.status||"";
   const ids=new Set(checked(d,h.id,day));
-  const stepItems=assignedSteps;
-  // Daily study requires all three scheduled items: math, reading and today's writing.
+  // A grouped set of alternatives contributes one completed step.
   let ticked=0;
   if(status==="approved"||status==="pending")ticked=stepCount;
-  else if(stepItems.length){
-   ticked=stepItems.filter(x=>ids.has(x.id)).length;
+  else if(assignedSteps.length){
+   ticked=taskUnits(h).filter(group=>group.items.some(item=>ids.has(item.id))).length;
   }
   result.totalTasks++;
   result.totalSteps+=stepCount;
@@ -907,27 +911,62 @@ function notify(msg){const el=document.getElementById("toast");el.textContent=ms
 
 function bulkTaskRow(h){
  const e=h||{id:"",title:"",reward_minutes:5,items:[],active:true};
- const subs=(e.items||[]).map(item=>bulkSubRow(item.title)).join("");
+ const titles=[...new Set((e.items||[]).map(i=>String(i.group||"").trim()).filter(Boolean))];
+ const groups=titles.map((title,index)=>({id:"group-"+index,title}));
+ const subs=(e.items||[]).map(item=>bulkSubRow(item,groups)).join("");
+ const groupsUI=groups.map(g=>bulkGroupRow(g)).join("");
  return '<details name="bulk-tasks" class="bulk-row bulk-task-row" data-created="'+(!h?"1":"0")+'" '+(!h?"open":"")+'>'+
   '<summary class="bulk-summary"><span class="bulk-summary-left">'+
   '<strong class="bulk-summary-title">'+safe(e.title||"새 할 일")+'</strong>'+
-  '<small class="bulk-summary-extra">+'+e.reward_minutes+'분 · '+(e.items.length?e.items.length+"개 하위 항목":"단일 체크")+'</small>'+
+  '<small class="bulk-summary-extra">+'+e.reward_minutes+'분 · '+(e.items.length?e.items.length+"개 하위 항목":"단일 체크")+
+  (groups.length?" · "+groups.length+"개 묶음":"")+'</small>'+
   '</span><span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
   '<span class="bulk-chevron" aria-hidden="true">⌄</span></summary>'+
   '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
   '<div class="bulk-inline-fields"><label>할 일 이름<input name="task-title" maxlength="80" value="'+safe(e.title)+'"></label>'+
   '<label>적립 시간 (분)<input name="task-minutes" type="number" min="1" max="180" value="'+e.reward_minutes+'"></label></div>'+
   '<div class="bulk-subsection"><div class="bulk-subhead"><strong>하위 항목</strong>'+
-  el("+ 추가","tiny","bulk-add-sub")+'</div>'+
+  el("+ 항목","tiny","bulk-add-sub")+'</div>'+
+  '<p class="bulk-group-help">필수 항목은 모두 체크해야 하고, 같은 묶음에서는 하나만 선택하면 됩니다.</p>'+
   '<div class="bulk-subitems">'+subs+'</div>'+
-  '<textarea name="task-items" class="bulk-hidden-items" hidden tabindex="-1" aria-hidden="true">'+
-  safe(e.items.map(x=>x.title).join("\n"))+'</textarea></div>'+
+  '<div class="bulk-subhead bulk-group-header"><strong>하위 묶음</strong>'+el("+ 묶음","tiny","bulk-add-group")+'</div>'+
+  '<div class="bulk-groups">'+groupsUI+'</div></div>'+
   '<div class="bulk-row-options"><label class="bulk-active"><input type="checkbox" name="task-active" '+(e.active?"checked":"")+'> 사용하기</label>'+
   (!h?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></details>';
 }
-function bulkSubRow(value){
- return '<div class="bulk-subitem"><input type="text" name="sub-title" aria-label="하위 항목" maxlength="48" placeholder="하위 항목 이름" value="'+safe(value||"")+'">'+
+function bulkGroupRow(group){
+ const id=group?.id||uid(),title=group?.title||"";
+ return '<div class="bulk-group-row" data-group-id="'+safe(id)+'">'+
+  '<input name="group-title" maxlength="48" aria-label="하위 묶음 이름" placeholder="묶음 이름 (예: 쓰기 연습)" value="'+safe(title)+'">'+
+  el("묶음 해제","tiny muted","bulk-remove-group")+'</div>';
+}
+function bulkSubRow(item,groups=[]){
+ const id=typeof item==="object"&&item?.id||"",title=typeof item==="string"?item:item?.title||"";
+ const group=typeof item==="object"?String(item?.group||"").trim():"";
+ const choice=groups.find(x=>x.title===group)?.id||"";
+ return '<div class="bulk-subitem" data-item-id="'+safe(id)+'">'+
+  '<input type="text" name="sub-title" aria-label="하위 항목 이름" maxlength="48" placeholder="하위 항목 이름" value="'+safe(title)+'">'+
+  '<select name="sub-group" aria-label="하위 항목 소속 묶음">'+
+  '<option value="">필수</option>'+
+  groups.map(g=>'<option value="'+safe(g.id)+'" '+(g.id===choice?"selected":"")+'>'+safe(g.title)+'</option>').join("")+
+  '</select>'+
   el("×","tiny muted","bulk-remove-sub",'aria-label="하위 항목 삭제"')+'</div>';
+}
+function bulkGroupDefinitions(row){
+ return Array.from(row.querySelectorAll(".bulk-group-row")).map(entry=>({
+  id:entry.dataset.groupId,
+  title:String(entry.querySelector('[name="group-title"]')?.value||"").trim()
+ }));
+}
+function bulkRefreshGroups(row){
+ if(!row)return;
+ const groups=bulkGroupDefinitions(row);
+ row.querySelectorAll('.bulk-subitem [name="sub-group"]').forEach(select=>{
+  const selected=select.value;
+  select.innerHTML='<option value="">필수</option>'+groups.map(g=>
+   '<option value="'+safe(g.id)+'">'+safe(g.title||"이름 없는 묶음")+'</option>').join("");
+  select.value=groups.some(g=>g.id===selected)?selected:"";
+ });
 }
 function bulkBonusRow(item){
  const b=item||{id:"",title:"",minutes:10,active:true};
@@ -979,12 +1018,7 @@ function bulkDirty(form){
 }
 function bulkSyncRows(form){
  if(!form)return;
- form.querySelectorAll(".bulk-task-row").forEach(row=>{
-  const textarea=row.querySelector('[name="task-items"]');
-  if(!textarea)return;
-  textarea.value=Array.from(row.querySelectorAll('.bulk-subitems [name="sub-title"]'))
-   .map(input=>String(input.value||"").trim()).filter(Boolean).join("\n");
- });
+ form.querySelectorAll(".bulk-task-row").forEach(bulkRefreshGroups);
 }
 function bulkUpdatePreview(row){
  if(!row)return;
@@ -993,13 +1027,14 @@ function bulkUpdatePreview(row){
    title=find(task?"task-title":"bonus-title")?.value?.trim()|| (task?"새 할 일":"새 상벌"),
    amount=Number(find(task?"task-minutes":"bonus-minutes")?.value||0),
    sign=task||find("bonus-type")?.value==="add"?"+":"−",
-   count=task?row.querySelectorAll('.bulk-subitems [name="sub-title"]').length:0;
+   count=task?row.querySelectorAll('.bulk-subitems [name="sub-title"]').length:0,
+   groups=task?row.querySelectorAll(".bulk-group-row").length:0;
  const label=row.querySelector(".bulk-summary-title"),
   extra=row.querySelector(".bulk-summary-extra"),
   inactive=row.querySelector(".bulk-summary-status");
  if(label)label.textContent=title;
  if(extra){
-  extra.textContent=sign+amount+"분"+(task?" · "+(count?count+"개 하위 항목":"단일 체크"):"");
+  extra.textContent=sign+amount+"분"+(task?" · "+(count?count+"개 하위 항목":"단일 체크")+(groups?" · "+groups+"개 묶음":""):"");
   extra.classList.toggle("positive",sign==="+");
   extra.classList.toggle("negative",sign==="−");
  }
@@ -1026,20 +1061,34 @@ function saveBulkEditor(form){
   throw Error("기존 항목은 삭제할 수 없습니다. 사용을 해제해주세요.");
  const updatedTasks=taskRows.map((row,index)=>{
   const id=get(row,"task-id"),prev=id?oldTasks.find(h=>h.id===id):null,
-   title=get(row,"task-title"),minutes=Number(get(row,"task-minutes")),
-   subitems=String(field(row,"task-items")?.value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
-  if((id&&!prev)||!title||title.length>80||!Number.isInteger(minutes)||minutes<1||minutes>180||
-     subitems.length>20||subitems.some(x=>x.length>48))throw Error("할 일 이름, 시간, 하부 항목을 확인해주세요.");
-  const already=prev?.items||[];
-  const reserved=new Set();
-  const items=subitems.map((name,i)=>{
-   const found=already[i]?.title===name&&!reserved.has(already[i].id)?already[i]:
-     already.find(x=>x.title===name&&!reserved.has(x.id));
-   if(found)reserved.add(found.id);
-   return {id:found?.id||uid(),title:name};
+   title=get(row,"task-title"),minutes=Number(get(row,"task-minutes"));
+  const groups=bulkGroupDefinitions(row);
+  if(groups.length>20||groups.some(g=>!g.title||g.title.length>48)||
+    new Set(groups.map(g=>g.title)).size!==groups.length)
+   throw Error("묶음은 이름을 입력하고 서로 다른 이름을 사용해주세요 (최대 20개).");
+  const groupById=new Map(groups.map(g=>[g.id,g.title]));
+  const subRows=Array.from(row.querySelectorAll(".bulk-subitem"));
+  if(subRows.length>20)throw Error("하위 항목은 최대 20개까지 등록할 수 있습니다.");
+  const ids=new Set(),items=subRows.map(entry=>{
+   const name=String(entry.querySelector('[name="sub-title"]')?.value||"").trim(),
+    oldId=entry.dataset.itemId||"",
+    assigned=entry.querySelector('[name="sub-group"]')?.value||"",
+    previous=prev?.items.find(i=>i.id===oldId),
+    group=groupById.get(assigned)||"";
+   if(!name||name.length>48||(oldId&&ids.has(oldId)))
+    throw Error("하위 항목 이름이나 중복 ID를 확인해주세요.");
+   if(assigned&&!group)throw Error("삭제된 묶음에 포함된 항목이 있습니다.");
+   ids.add(oldId);
+   const item={...(previous||{}),id:previous?.id||uid(),title:name};
+   if(group)item.group=group;else delete item.group;
+   return item;
   });
-  return prev?{...prev,title,reward_minutes:minutes,items,active:bool(row,"task-active"),sort_order:index+1}:
-   {id:uid(),title,reward_minutes:minutes,items,active:bool(row,"task-active"),
+  if(groups.some(g=>items.filter(item=>item.group===g.title).length<2))
+   throw Error("묶음에는 선택할 수 있는 항목이 최소 2개 있어야 합니다.");
+  if((id&&!prev)||!title||title.length>80||!Number.isInteger(minutes)||minutes<1||minutes>180)
+   throw Error("할 일 이름과 적립 시간을 확인해주세요.");
+  return prev?{...prev,title,reward_minutes:minutes,items,rotation:false,active:bool(row,"task-active"),sort_order:index+1}:
+   {id:uid(),title,reward_minutes:minutes,items,rotation:false,active:bool(row,"task-active"),
     sort_order:index+1,created_on:seoulToday()};
  });
  const updatedBonuses=bonusRows.map(row=>{
@@ -1272,9 +1321,24 @@ document.addEventListener("click",e=>{
   }
   else if(act==="bulk-add-sub"&&role()==="parent"){
    const row=t.closest(".bulk-task-row"),list=row?.querySelector(".bulk-subitems");
-   list?.insertAdjacentHTML("beforeend",bulkSubRow(""));
-   list?.lastElementChild?.querySelector("input")?.focus();
+   list?.insertAdjacentHTML("beforeend",bulkSubRow(null,bulkGroupDefinitions(row)));
+   list?.lastElementChild?.querySelector('[name="sub-title"]')?.focus();
    bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
+  }
+  else if(act==="bulk-add-group"&&role()==="parent"){
+   const row=t.closest(".bulk-task-row"),list=row?.querySelector(".bulk-groups");
+   list?.insertAdjacentHTML("beforeend",bulkGroupRow({id:uid(),title:""}));
+   bulkRefreshGroups(row);
+   list?.lastElementChild?.querySelector('[name="group-title"]')?.focus();
+   bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
+  }
+  else if(act==="bulk-remove-group"&&role()==="parent"){
+   const row=t.closest(".bulk-task-row"),entry=t.closest(".bulk-group-row"),id=entry?.dataset.groupId;
+   row?.querySelectorAll('.bulk-subitem [name="sub-group"]').forEach(sel=>{
+    if(sel.value===id)sel.value="";
+   });
+   entry?.remove();
+   bulkRefreshGroups(row);bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="bulk-remove-sub"&&role()==="parent"){
    const row=t.closest(".bulk-task-row");
@@ -1329,6 +1393,7 @@ document.addEventListener("submit",e=>{
 document.addEventListener("input",e=>{
  const row=e.target.closest?.(".bulk-row");
  if(!row||role()!=="parent")return;
+ if(e.target.name==="group-title")bulkRefreshGroups(row);
  bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
 });
 document.addEventListener("change",e=>{

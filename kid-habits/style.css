@@ -1160,3 +1160,55 @@ button.apply{background:#e7f2e9;border-color:#c5e0cc;color:#285c3c}
  .view-registration{padding-top:clamp(16px,4vh,35px)}
  .view-registration .pin{margin-top:24px}
 }
+
+/* Reusable subgroup editing and any-one choice v20 */
+.grouped-subtasks{display:flex;flex-direction:column;gap:7px}
+.grouped-subtasks .subgroup{
+ display:block;min-width:0;border:1px solid #e0eae2;
+ border-radius:10px;padding:8px 10px;background:#f7faf7;
+}
+.grouped-subtasks .subgroup.subgroup-done{border-color:#c7dfcd;background:#f2f8f3}
+.subgroup-heading{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;
+ padding:1px 4px 5px;color:#41614c;
+}
+.subgroup-heading strong{font-size:12px;font-weight:750;letter-spacing:-.1px}
+.subgroup-heading small{font-size:11px;font-weight:560;color:#7b8d7e}
+.subgroup-options{display:grid;gap:1px}
+.grouped-subtasks .subgroup-options .subitem{width:100%;text-align:left}
+.grouped-subtasks .subgroup-options .subitem.selectable{background:transparent}
+.grouped-subtasks .subgroup-options .subitem.selectable:hover{background:#edf5ed}
+.bulk-group-help{
+ margin:2px 0 10px;font-size:12px;line-height:1.55;color:#798b7e
+}
+.bulk-group-header{
+ margin:15px 0 8px;padding-top:12px;border-top:1px solid #e9efeb
+}
+.bulk-groups{display:grid;gap:7px}
+.bulk-group-row{
+ display:flex;align-items:center;gap:8px;min-width:0;
+ background:#f6f9f6;border:1px solid #e2ebe3;
+ padding:8px;border-radius:10px
+}
+.bulk-group-row input{
+ flex:1;min-width:0;min-height:38px;background:#fff;
+ font-size:13px
+}
+.bulk-group-row .tiny{font-size:11px;min-height:36px;padding:6px 9px;white-space:nowrap}
+.bulk-form .bulk-subitem{
+ display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,125px) auto;gap:7px
+}
+.bulk-form .bulk-subitem input{min-width:0;width:100%}
+.bulk-form .bulk-subitem select{
+ min-width:0;width:100%;min-height:39px;
+ padding:7px 26px 7px 9px;font-size:12px;
+ color:#496451;background-color:#f9fbf9;
+ border:1px solid #dce7dd;border-radius:8px
+}
+@media(max-width:430px){
+ .bulk-form .bulk-subitem{grid-template-columns:minmax(0,1fr) 88px auto;gap:5px}
+ .bulk-form .bulk-subitem select{font-size:11px;padding-left:6px;padding-right:17px}
+ .bulk-form .bulk-subitem .tiny{min-width:30px;min-height:38px;padding:5px 6px}
+ .bulk-group-row{gap:5px;padding:6px}
+ .bulk-group-row .tiny{font-size:10px;padding:5px 7px}
+}
