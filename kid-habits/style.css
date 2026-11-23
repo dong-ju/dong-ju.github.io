@@ -1506,7 +1506,7 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 /* A single-line row with an explicit picker trigger, no clipped native select. */
 .bulk-form .bulk-subitem{
  display:grid;
- grid-template-columns:minmax(0,1fr) minmax(94px,134px) 62px;
+ grid-template-columns:30px minmax(0,1fr) minmax(94px,134px) 30px;
  grid-template-rows:minmax(42px,auto);
  align-items:center;
  column-gap:5px;
@@ -1514,13 +1514,13 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  min-width:0;
 }
 .bulk-form .bulk-subitem input[name="sub-title"]{
- grid-column:1;grid-row:1;
+ grid-column:2;grid-row:1;
  min-width:0;width:100%;
  padding:8px 9px;font-size:14px;
 }
 .bulk-form .bulk-subitem select[name="sub-group"]{display:none!important}
 .bulk-form .bulk-subitem .subgroup-picker-trigger{
- grid-column:2;grid-row:1;
+ grid-column:3;grid-row:1;
  display:flex;align-items:center;justify-content:space-between;
  gap:3px;min-width:0;width:100%;min-height:42px;
  padding:6px 7px 6px 9px;
@@ -1539,12 +1539,13 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 }
 .subgroup-picker-trigger svg{display:block;width:16px;height:16px;flex:0 0 16px;color:#658371}
 .bulk-form .bulk-subitem .bulk-row-control-group{
- grid-column:3;grid-row:1;display:flex;flex-wrap:nowrap;
+ grid-column:4;grid-row:1;display:flex;flex-wrap:nowrap;
  align-items:center;justify-content:flex-end;
  min-width:0;white-space:nowrap;gap:2px;
 }
-.bulk-form .bulk-subitem .bulk-row-control-group .drag-handle{
- width:30px;min-width:30px;height:38px
+.bulk-form .bulk-subitem > .drag-handle{
+ grid-column:1;grid-row:1;
+ width:30px;min-width:30px;height:42px;
 }
 .bulk-form .bulk-subitem .bulk-row-control-group .tiny{
  width:30px;min-width:30px;height:38px;min-height:38px;padding:4px
@@ -1618,22 +1619,106 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
   box-shadow:0 -10px 42px rgba(18,34,23,.18);
  }
  .bulk-form .bulk-subitem{
-  grid-template-columns:minmax(0,1fr) minmax(96px,124px) 62px;
+  grid-template-columns:30px minmax(0,1fr) minmax(88px,118px) 30px;
   grid-template-rows:minmax(42px,auto);
   column-gap:4px;row-gap:0;
  }
  .bulk-form .bulk-subitem input[name="sub-title"]{
-  grid-column:1;grid-row:1;min-width:0;
+  grid-column:2;grid-row:1;min-width:0;
   font-size:14px;padding:8px 7px;
  }
  .bulk-form .bulk-subitem .subgroup-picker-trigger{
-  grid-column:2;grid-row:1;
+  grid-column:3;grid-row:1;
   padding:5px 5px 5px 7px;
   font-size:12px;min-width:0;
  }
  .bulk-form .bulk-subitem .bulk-row-control-group{
-  grid-column:3;grid-row:1;gap:2px;flex-wrap:nowrap;
+  grid-column:4;grid-row:1;gap:2px;flex-wrap:nowrap;
  }
  .bulk-form .bulk-panel{padding:9px 2px 14px}
  .bulk-form .bulk-summary{padding:11px 1px}
+}
+
+/* Consistent leading drag affordance and equal-height subgroup editor controls. */
+.bulk-form .bulk-summary .drag-handle{
+ margin-left:0;margin-right:2px;
+ flex:0 0 30px;min-width:30px;width:30px;
+ align-self:center;
+}
+.bulk-form .bulk-group-row{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;
+ align-items:center;
+ gap:8px;
+ padding:6px 8px;
+ min-width:0;
+ background:transparent;
+ border:0;border-bottom:1px solid #edf1ed;
+ border-radius:0;
+}
+.bulk-form .bulk-group-row:last-child{border-bottom:0}
+.bulk-form .bulk-group-row input[name="group-title"]{
+ display:block;
+ width:100%;min-width:0;
+ height:44px;min-height:44px;
+ box-sizing:border-box;
+ padding:9px 11px;font-size:14px;
+ border-radius:9px;
+}
+.bulk-form .bulk-group-row button[data-action="bulk-remove-group"]{
+ display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 auto;
+ height:44px;min-height:44px;
+ min-width:82px;
+ box-sizing:border-box;
+ padding:0 11px;
+ border:1px solid #dae5dc;
+ background:#f6f9f6;
+ border-radius:9px;
+ color:#5b6d60;
+ font-size:12px;font-weight:650;
+ line-height:1;
+ white-space:nowrap;
+}
+.bulk-form .bulk-group-row button[data-action="bulk-remove-group"]:hover{
+ background:#eef3ef;border-color:#bed2c3;color:#385740;
+}
+.bulk-form .bulk-group-row button[data-action="bulk-remove-group"]:focus-visible{
+ outline:2px solid #367550;outline-offset:2px;
+}
+.view-parent.screen-today>.group>.group-head{
+ display:flex;
+ align-items:center;
+ justify-content:flex-start;
+ gap:8px;
+}
+.view-parent.screen-today>.group>.group-head>.drag-handle{
+ margin-left:0;
+ flex:0 0 32px;
+}
+.view-parent.screen-today>.group>.group-head>h2{min-width:0}
+.view-parent.screen-today>.one-time-group>.group-head .section-head-actions{margin-left:auto}
+.view-parent .one-time-item>.drag-handle{
+ margin-left:0;
+ flex:0 0 32px;
+ align-self:center;
+}
+@media(max-width:500px){
+ .bulk-form .bulk-group-row{gap:6px;padding:6px 4px}
+ .bulk-form .bulk-group-row input[name="group-title"]{
+  height:42px;min-height:42px;font-size:13px;padding:8px 9px;
+ }
+ .bulk-form .bulk-group-row button[data-action="bulk-remove-group"]{
+  height:42px;min-height:42px;min-width:76px;
+  font-size:12px;padding:0 8px;
+ }
+ .view-parent .one-time-item{
+  display:grid;
+  grid-template-columns:32px minmax(0,1fr);
+  grid-template-rows:auto auto;
+  align-items:center;
+  column-gap:9px;row-gap:8px;
+ }
+ .view-parent .one-time-item>.drag-handle{grid-column:1;grid-row:1;align-self:center}
+ .view-parent .one-time-item>.one-time-detail{grid-column:2;grid-row:1}
+ .view-parent .one-time-item>.one-time-actions{grid-column:2;grid-row:2;justify-content:flex-start}
 }
