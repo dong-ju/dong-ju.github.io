@@ -1232,8 +1232,11 @@ function render(){
   '<div class="bonus-list">'+d.bonusItems.map(item=>{
    const amount=(item.minutes>0?"+":"")+item.minutes+"분";
    return '<article class="bonus-entry '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
-    '<span class="bonus-amount '+(item.minutes>0?"positive":"negative")+'">'+amount+'</span>'+
-    (item.active!==false?el("적용","tiny apply","bonus-apply",'data-id="'+safe(item.id)+'"'):"")+'</article>';
+    '<span class="bonus-controls"><span class="bonus-amount '+(item.minutes>0?"positive":"negative")+'">'+amount+'</span>'+
+    (item.active!==false?'<button type="button" class="bonus-apply-icon" data-action="bonus-apply" data-id="'+safe(item.id)+
+     '" aria-label="'+safe(item.title)+' '+safe(amount)+' 적용" title="상벌 적용">'+
+     '<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'+
+     '<path d="M5 12l4 4L19 6"/></svg></button>':"")+'</span></article>';
   }).join("")+'</div></section>':"";
  const childBonus=r==="child"?renderChildBonusItems(d):"";
  const sectionViews={habits:taskGroup,oneTime:renderOneTimeTasks(d,r),bonuses:r==="parent"?bonusGroup:childBonus};
