@@ -494,7 +494,7 @@ function submitSimple(hid){
  const c=check(d,hid,day);
  if(c&&c.status==="pending")d.checks=d.checks.filter(x=>x!==c);
  else if(!c||c.status==="rejected"){pushCheck(d,h,day);signalParent(h.title);}
- save(d);render();
+ save(d);if(!refreshChildCheckView(d))render();
 }
 function review(hid,status){
  requireParent();const d=read(),h=habit(d,hid),day=viewDay,c=check(d,hid,day);
@@ -690,7 +690,7 @@ function renderTask(d,h,day,r){
  const checkedMark='<span class="dot '+(allTicked?"on":"")+'">'+(allTicked?"✓":"")+'</span>';
  const label='<span class="task-name">'+safe(h.title)+'</span>';
  const titleRow=!isParent&&items.length===0?
-  '<button type="button" class="task-label task-click" data-action="complete" data-id="'+safe(h.id)+'" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
+  '<button type="button" class="task-label task-click task-single-check" data-action="complete" data-id="'+safe(h.id)+'" aria-label="'+safe(h.title)+' 완료 체크" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
   '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
  // Editing is available in one separate parent settings window.
@@ -762,7 +762,9 @@ function refreshChildCheckView(d){
  prepared.forEach(entry=>{
   if(entry.approved)return;
   const {h,card,c,options,groups,groupNodes,done}=entry;
-  const pending=c?.status==="pending",complete=pending||taskUnitsDone(h,done);
+  // Empty tasks have no individual checks; reflect only the pending state.
+  const pending=c?.status==="pending",
+   complete=(h.items||[]).length===0?pending:(pending||taskUnitsDone(h,done));
   card.classList.toggle("task-checked",pending);
   card.classList.toggle("task-retry",c?.status==="rejected");
   card.classList.remove("task-done");
