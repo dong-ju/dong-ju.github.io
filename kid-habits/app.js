@@ -709,8 +709,8 @@ function renderTask(d,h,day,r){
     const dot='<span class="dot '+(marked?"on":"")+'">'+(marked?"✓":"")+'</span>';
     const label=dot+'<span>'+safe(item.title)+'</span>';
     return isParent?
-     '<div class="subitem">'+label+'</div>':
-     '<button type="button" class="subitem selectable" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" aria-pressed="'+(marked?"true":"false")+'" '+(complete?"disabled":"")+'>'+label+'</button>';
+     '<div class="subitem habit-subitem">'+label+'</div>':
+     '<button type="button" class="subitem selectable habit-subitem" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" aria-pressed="'+(marked?"true":"false")+'" '+(complete?"disabled":"")+'>'+label+'</button>';
    };
    if(!isGroup)return option(unit.items[0]);
    return '<div class="subgroup '+(selected||complete?"subgroup-done":"")+'">'+
@@ -722,7 +722,7 @@ function renderTask(d,h,day,r){
  let actionsBottom="";
  if(isParent&&pending)actionsBottom='<div class="task-foot">'+el("확인","primary","review",'data-id="'+safe(h.id)+'" data-status="approved"')+'</div>';
  else if(isParent&&complete&&sameActionDay(c?.reviewed_at))actionsBottom='<div class="task-foot">'+el("완료 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
- return '<article data-habit-id="'+safe(h.id)+'" class="task '+(complete?"task-done":pending?"task-checked":c?.status==="rejected"?"task-retry":"")+'"><div class="task-top">'+titleRow+
+ return '<article data-habit-id="'+safe(h.id)+'" class="task habit-card '+(complete?"task-done":pending?"task-checked":c?.status==="rejected"?"task-retry":"")+'"><div class="task-top">'+titleRow+
   '<div class="right">'+(state?'<span class="state '+(complete?"done":"")+'">'+state+'</span>':'')+
   '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
   detail+actionsBottom+'</article>';
@@ -1109,8 +1109,8 @@ function renderChildBonusItems(d){
   '<span class="child-bonus-chip"><span>'+safe(item.title)+'</span>'+
   '<b class="'+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</b></span>'
  ).join("");
- return '<section class="child-bonus-group" aria-label="상벌 보너스">'+
-  '<div class="child-bonus-line"><strong>상벌 보너스</strong>'+
+ return '<section class="child-bonus-group habit-group" aria-label="상벌 보너스">'+
+  '<div class="child-bonus-line habit-card"><strong>상벌 보너스</strong>'+
   '<div class="child-bonus-inline">'+(chips||'<span class="child-bonus-empty">등록된 항목 없음</span>')+'</div></div></section>';
 }
 function childProgressNumbers(d,active,day){
@@ -1206,21 +1206,21 @@ function renderOneTimeTasks(d,r){
    '<button type="button" class="task-label one-time-check" data-action="one-time-toggle" '+attrs+
    ' aria-pressed="'+done+'" aria-label="'+safe(t.title)+' '+(done?"완료 취소":"완료")+'">'+dot+labelText+'</button>':
    '<div class="task-label">'+dot+labelText+'</div>';
-  return '<article '+attrs+' class="task one-time-item '+(done?"is-done task-done":overdue?"is-overdue":"")+'">'+
+  return '<article '+attrs+' class="task one-time-item habit-card '+(done?"is-done task-done":overdue?"is-overdue":"")+'">'+
    '<div class="task-top">'+label+
    (editable?'<div class="one-time-actions">'+el("수정","tiny","one-time-edit",attrs)+
     el("삭제","tiny","one-time-delete",attrs)+'</div>':"")+
    '</div></article>';
  };
- return '<section class="group one-time-group" aria-label="할 일">'+
-  '<div class="group-head"><h2>할 일</h2><div class="section-head-actions">'+
+ return '<section class="group one-time-group habit-group" aria-label="할 일">'+
+  '<div class="group-head habit-group-head"><h2>할 일</h2><div class="section-head-actions">'+
    el("+ 등록","tiny one-time-add","one-time-add")+'</div></div>'+
   '<div class="one-time-list">'+
-   '<div class="one-time-drag-group" data-status="pending">'+
+   '<div class="one-time-drag-group habit-item-list" data-status="pending">'+
    (pending.length?pending.map(card).join(""):'<p class="one-time-empty">진행 중인 할 일이 없습니다.</p>')+
    '</div>'+
    (completed.length?'<div class="one-time-subhead">완료한 할 일</div>'+
-    '<div class="one-time-drag-group" data-status="completed">'+completed.map(card).join("")+'</div>':"")+
+    '<div class="one-time-drag-group habit-item-list" data-status="completed">'+completed.map(card).join("")+'</div>':"")+
   '</div></section>';
 }
 function oneTimeEditor(task){
@@ -1281,12 +1281,12 @@ function render(){
    '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+
    el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
    el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
- const taskGroup='<section class="group"><div class="group-head"><h2>매일 할 일</h2></div>'+
-  '<div class="tasks">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
- const bonusGroup=r==="parent"?'<section class="group"><div class="group-head"><h2>추가 상벌 보너스</h2></div>'+
-  '<div class="bonus-list">'+d.bonusItems.map(item=>{
+ const taskGroup='<section class="group habit-group"><div class="group-head habit-group-head"><h2>매일 할 일</h2></div>'+
+  '<div class="tasks habit-item-list">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
+ const bonusGroup=r==="parent"?'<section class="group habit-group"><div class="group-head habit-group-head"><h2>추가 상벌 보너스</h2></div>'+
+  '<div class="bonus-list habit-item-list">'+d.bonusItems.map(item=>{
    const amount=(item.minutes>0?"+":"")+item.minutes+"분";
-   return '<article class="bonus-entry '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
+   return '<article class="bonus-entry habit-card '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
     '<span class="bonus-controls"><span class="bonus-amount '+(item.minutes>0?"positive":"negative")+'">'+amount+'</span>'+
     (item.active!==false?'<button type="button" class="bonus-apply-icon" data-action="bonus-apply" data-id="'+safe(item.id)+
      '" aria-label="'+safe(item.title)+' '+safe(amount)+' 적용" title="상벌 적용">'+
