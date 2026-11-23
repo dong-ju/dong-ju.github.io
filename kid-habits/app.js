@@ -1919,8 +1919,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v32")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v32","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v33")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v33","1");
   window.location.reload();
  });
 }
