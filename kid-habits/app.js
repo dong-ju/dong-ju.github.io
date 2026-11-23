@@ -590,7 +590,7 @@ function dragRowName(row,kind){
  if(kind==="tasks"||kind==="bonuses")
   return row.querySelector(".bulk-summary-title")?.textContent||"할 일";
  if(kind==="subitems")return row.querySelector('[name="sub-title"]')?.value||"하위 항목";
- if(kind==="sections")return row.querySelector("h2")?.textContent||"화면 구역";
+ if(kind==="sections")return row.querySelector("strong")?.textContent||"화면 구역";
  return row.querySelector("strong")?.textContent||"할 일";
 }
 function beginRowDrag(event){
@@ -636,7 +636,9 @@ function moveRowDrag(event){
     event.clientY<rect.top-32||event.clientY>rect.bottom+32)return;
  const peers=dragItems(drag.container,drag.rule).filter(node=>node!==drag.row);
  const before=peers.find(node=>{
-  const b=node.getBoundingClientRect();return event.clientY<b.top+b.height/2;
+  const b=node.getBoundingClientRect();
+  return drag.kind==="sections"?event.clientX<b.left+b.width/2:
+   event.clientY<b.top+b.height/2;
  });
  if(before)drag.container.insertBefore(drag.row,before);
  else drag.container.appendChild(drag.row);
@@ -658,14 +660,18 @@ function finishRowDrag(event,cancelled=false){
  }catch(err){render();notify(err.message||"정렬을 저장하지 못했습니다.");}
 }
 function keyboardRowDrag(event){
- if(!["ArrowUp","ArrowDown"].includes(event.key)||role()!=="parent")return;
+ if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)||role()!=="parent")return;
  const handle=event.target.closest?.(".drag-handle"),context=handle&&dragContext(handle);
  if(!context)return;
+ const horizontal=context.kind==="sections";
+ if(horizontal?!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(event.key):
+   !["ArrowUp","ArrowDown"].includes(event.key))return;
  event.preventDefault();event.stopPropagation();
  const peers=dragItems(context.container,context.rule),index=peers.indexOf(context.row);
- const other=peers[index+(event.key==="ArrowUp"?-1:1)];
+ const previous=["ArrowUp","ArrowLeft"].includes(event.key);
+ const other=peers[index+(previous?-1:1)];
  if(!other)return;
- if(event.key==="ArrowUp")context.container.insertBefore(context.row,other);
+ if(previous)context.container.insertBefore(context.row,other);
  else context.container.insertBefore(other,context.row);
  bulkDirty(document.getElementById("bulkForm"));handle.focus();
 }
