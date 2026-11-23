@@ -644,8 +644,7 @@ function moveRowDrag(event){
  const peers=dragItems(drag.container,drag.rule).filter(node=>node!==drag.row);
  const before=peers.find(node=>{
   const b=node.getBoundingClientRect();
-  return drag.kind==="sections"?event.clientX<b.left+b.width/2:
-   event.clientY<b.top+b.height/2;
+  return event.clientY<b.top+b.height/2;
  });
  if(before)drag.container.insertBefore(drag.row,before);
  else drag.container.appendChild(drag.row);
@@ -667,19 +666,17 @@ function finishRowDrag(event,cancelled=false){
  }catch(err){render();notify(err.message||"정렬을 저장하지 못했습니다.");}
 }
 function keyboardRowDrag(event){
- if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(event.key)||role()!=="parent")return;
+ if(!["ArrowUp","ArrowDown"].includes(event.key)||role()!=="parent")return;
  const handle=event.target.closest?.(".drag-handle");
  const inList=handle?.closest("#bulkForm");
  const inDetail=handle?.dataset.dragKind==="subitems"&&handle?.closest("#bulkDetailModal");
  if(!inList&&!inDetail)return;
  const context=dragContext(handle);
  if(!context)return;
- const horizontal=context.kind==="sections";
- if(horizontal?!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(event.key):
-   !["ArrowUp","ArrowDown"].includes(event.key))return;
+ if(!["ArrowUp","ArrowDown"].includes(event.key))return;
  event.preventDefault();event.stopPropagation();
  const peers=dragItems(context.container,context.rule),index=peers.indexOf(context.row);
- const previous=["ArrowUp","ArrowLeft"].includes(event.key);
+ const previous=event.key==="ArrowUp";
  const other=peers[index+(previous?-1:1)];
  if(!other)return;
  if(previous)context.container.insertBefore(context.row,other);
@@ -1342,7 +1339,7 @@ function bulkTaskRow(h){
   '<small class="bulk-summary-extra">+'+e.reward_minutes+'분 · '+(e.items.length?e.items.length+"개 하위 항목":"단일 체크")+
   (groups.length?" · "+groups.length+"개 묶음":"")+'</small>'+
   '</span><span class="bulk-summary-status">'+(e.active?"":"사용 안 함")+'</span>'+
-  '<span class="bulk-edit-caption" aria-hidden="true">편집</span></button>'+
+  '</button>'+
   '<div class="bulk-panel"><input type="hidden" name="task-id" value="'+safe(e.id)+'">'+
   '<div class="bulk-inline-fields"><label>할 일 이름<input name="task-title" maxlength="80" value="'+safe(e.title)+'"></label>'+
   '<label>적립 시간 (분)<input name="task-minutes" type="number" min="1" max="180" value="'+e.reward_minutes+'"></label></div>'+
@@ -1457,7 +1454,7 @@ function bulkBonusRow(item){
   '<strong class="bulk-summary-title">'+safe(b.title||"새 상벌")+'</strong>'+
   '<small class="bulk-summary-extra '+(b.minutes>0?"positive":"negative")+'">'+(b.minutes>0?"+":"")+b.minutes+'분</small>'+
   '</span><span class="bulk-summary-status">'+(b.active?"":"사용 안 함")+'</span>'+
-  '<span class="bulk-edit-caption" aria-hidden="true">편집</span></button>'+
+  '</button>'+
   '<div class="bulk-panel"><input type="hidden" name="bonus-id" value="'+safe(b.id)+'">'+
   '<label>상벌 이름<input name="bonus-title" maxlength="80" value="'+safe(b.title)+'"></label>'+
   '<div class="bulk-inline-fields"><label>구분<select name="bonus-type">'+
@@ -1530,25 +1527,27 @@ function bulkEditor(initialTab="tasks"){
   '<div class="bulk-editor-head"><h2>항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
   '<div class="bulk-tabs" role="tablist" aria-label="편집할 항목">'+
   '<button type="button" role="tab" aria-selected="true" class="bulk-tab active" data-action="bulk-tab" data-panel="tasks">매일 할 일 <small>'+habits.length+'</small></button>'+
-  '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button></div>'+
-  '<details class="bulk-screen-order"><summary>화면 표시 순서 <span>정렬</span></summary>'+
-   '<div id="bulkSections" class="bulk-section-order-list">'+displaySections(d).map(id=>
-    '<div class="bulk-section-order-row" data-section-id="'+safe(id)+'">'+
-     dragHandle("sections",choices[id])+'<strong>'+safe(choices[id])+'</strong></div>').join("")+
-   '</div></details>'+
+  '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="bonuses">상벌 <small>'+d.bonusItems.length+'</small></button>'+
+  '<button type="button" role="tab" aria-selected="false" class="bulk-tab" data-action="bulk-tab" data-panel="sections">화면 순서</button></div>'+
   '<section class="bulk-section" id="bulkPanelTasks" data-bulk-panel="tasks" role="tabpanel">'+
    '<div class="bulk-section-head"><span>수정할 항목을 선택하세요</span>'+el("+ 매일 할 일","tiny","bulk-add-task")+'</div>'+
    '<div id="bulkTasks" class="bulk-list">'+habits.map(bulkTaskRow).join("")+'</div></section>'+
   '<section class="bulk-section" id="bulkPanelBonuses" data-bulk-panel="bonuses" role="tabpanel" hidden>'+
    '<div class="bulk-section-head"><span>수정할 상벌을 선택하세요</span>'+el("+ 상벌","tiny","bulk-add-bonus")+'</div>'+
    '<div id="bulkBonuses" class="bulk-list">'+d.bonusItems.map(bulkBonusRow).join("")+'</div></section>'+
+  '<section class="bulk-section bulk-section-order" id="bulkPanelSections" data-bulk-panel="sections" role="tabpanel" hidden>'+
+   '<div class="bulk-section-head"><span>홈 화면에 표시되는 순서입니다. 손잡이를 위아래로 움직여 변경하세요.</span></div>'+
+   '<div id="bulkSections" class="bulk-section-order-list">'+displaySections(d).map(id=>
+    '<div class="bulk-section-order-row" data-section-id="'+safe(id)+'">'+
+     dragHandle("sections",choices[id])+'<strong>'+safe(choices[id])+'</strong></div>').join("")+
+   '</div></section>'+
   '<div class="bulk-footer">'+el("취소","ghost","close")+
    '<button type="submit" class="primary">변경사항 저장</button></div></form>');
  if(initialTab!=="tasks")bulkSetTab(initialTab);
 }
 function bulkSetTab(name){
  closeSubgroupPicker();
- const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses"].includes(name))return;
+ const form=document.getElementById("bulkForm");if(!form||!["tasks","bonuses","sections"].includes(name))return;
  form.querySelectorAll("[data-bulk-panel]").forEach(panel=>{
   panel.hidden=panel.dataset.bulkPanel!==name;
  });
