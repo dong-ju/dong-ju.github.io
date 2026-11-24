@@ -496,6 +496,61 @@ function submitSimple(hid){
  else if(!c||c.status==="rejected"){pushCheck(d,h,day);signalParent(h.title);}
  save(d);if(!refreshChildCheckView(d))render();
 }
+
+/* Parent-only corrections for a previous day.
+   Keep the date of the work separate from the time the parent records it. */
+function pastCheckAllowed(d,h,day){
+ return role()==="parent"&&screen==="today"&&
+  /^\d{4}-\d{2}-\d{2}$/.test(day)&&
+  day<seoulToday()&&day>=d.started_on&&day>=(h.created_on||d.started_on);
+}
+function pastCheckContext(hid){
+ requireParent();
+ const d=read(),h=habit(d,hid),day=viewDay;
+ if(!pastCheckAllowed(d,h,day))throw Error("지난 날짜의 할 일만 부모가 체크할 수 있습니다.");
+ const c=check(d,h.id,day);
+ if(c?.status==="approved")throw Error("이미 완료된 날짜입니다. 기록을 먼저 확인해주세요.");
+ return {d,h,day,c};
+}
+function parentPastToggle(hid,itemId){
+ const {d,h,day,c}=pastCheckContext(hid);
+ const items=shownItems(d,h,day),item=items.find(x=>x.id===itemId);
+ if(!item)return;
+ const key=checkKey(hid,day),done=new Set(checked(d,hid,day));
+ if(!d.subcheckTimes[key])d.subcheckTimes[key]={};
+ const now=new Date().toISOString();
+ if(done.has(itemId)){
+  done.delete(itemId);delete d.subcheckTimes[key][itemId];
+ }else{
+  const group=String(item.group||"").trim();
+  if(group)items.filter(x=>String(x.group||"").trim()===group).forEach(x=>{
+   done.delete(x.id);delete d.subcheckTimes[key][x.id];
+  });
+  done.add(itemId);d.subcheckTimes[key][itemId]=now;
+ }
+ d.subchecks[key]=Array.from(done);
+ if(taskUnitsDone(h,done)){
+  pushCheck(d,h,day);
+  const pending=check(d,hid,day);
+  if(pending)pending.completed_items=selectedTaskItems(h,done).map(i=>({
+   title:i.title,at:d.subcheckTimes[key][i.id]||now
+  }));
+ }else if(c?.status==="pending"||c?.status==="rejected"){
+  d.checks=d.checks.filter(x=>x!==c);
+ }
+ save(d);render();
+}
+function parentPastComplete(hid){
+ const {d,h,day,c}=pastCheckContext(hid);
+ if((h.items||[]).length)return;
+ if(c?.status==="pending")d.checks=d.checks.filter(x=>x!==c);
+ else{
+  pushCheck(d,h,day);
+  const pending=check(d,hid,day);
+  if(pending)pending.completed_items=[];
+ }
+ save(d);render();
+}
 function review(hid,status){
  requireParent();const d=read(),h=habit(d,hid),day=viewDay,c=check(d,hid,day);
  if(!c||!["pending","approved"].includes(c.status))return;
@@ -688,6 +743,7 @@ function renderTask(d,h,day,r){
  const c=check(d,h.id,day),items=shownItems(d,h,day),
   done=new Set(checked(d,h.id,day)),isParent=r==="parent",state=status(c),
   complete=c?.status==="approved",pending=c?.status==="pending",
+  parentPast=isParent&&pastCheckAllowed(d,h,day)&&!complete,
   allTicked=complete||(items.length>0?taskUnitsDone(h,done):pending);
  // For legacy approved records, restore visible ticks from saved item titles
  // only if the original subcheck ID list is unavailable.
@@ -704,6 +760,8 @@ function renderTask(d,h,day,r){
  const label='<span class="task-name">'+safe(h.title)+'</span>';
  const titleRow=!isParent&&items.length===0?
   '<button type="button" class="task-label task-click task-single-check" data-action="complete" data-id="'+safe(h.id)+'" aria-label="'+safe(h.title)+' 완료 체크" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
+  parentPast&&items.length===0?
+  '<button type="button" class="task-label task-click parent-past-check" data-action="past-complete" data-id="'+safe(h.id)+'" aria-pressed="'+(pending?"true":"false")+'" aria-label="'+safe(h.title)+' 지난 날짜 체크">'+checkedMark+label+'</button>':
   '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
  // Editing is available in one separate parent settings window.
@@ -716,9 +774,9 @@ function renderTask(d,h,day,r){
     const checkedNow=done.has(item.id),marked=complete&&(isGroup?checkedNow: true)||checkedNow;
     const dot='<span class="dot '+(marked?"on":"")+'">'+(marked?"✓":"")+'</span>';
     const label=dot+'<span>'+safe(item.title)+'</span>';
-    return isParent?
+    return isParent&&!parentPast?
      '<div class="subitem habit-subitem">'+label+'</div>':
-     '<button type="button" class="subitem selectable habit-subitem" data-action="toggle" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" aria-pressed="'+(marked?"true":"false")+'" '+(complete?"disabled":"")+'>'+label+'</button>';
+     '<button type="button" class="subitem selectable habit-subitem '+(parentPast?"parent-past-check":"")+'" data-action="'+(parentPast?"past-toggle":"toggle")+'" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" aria-pressed="'+(marked?"true":"false")+'" '+(complete?"disabled":"")+'>'+label+'</button>';
    };
    if(!isGroup)return option(unit.items[0]);
    return '<div class="subgroup '+(selected||complete?"subgroup-done":"")+'">'+
@@ -1288,7 +1346,8 @@ function render(){
    '<div class="daybar">'+el("‹ 오늘","tiny","today")+'<span class="spacer"></span>'+
    el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
    el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
- const taskGroup='<section class="group habit-group"><div class="group-head habit-group-head"><h2>매일 할 일</h2></div>'+
+ const taskGroup='<section class="group habit-group"><div class="group-head habit-group-head"><h2>매일 할 일</h2>'+
+  (r==="parent"&&day<seoulToday()&&day>=d.started_on?'<small class="past-check-hint">지난 날짜 · 부모 체크</small>':"")+'</div>'+
   '<div class="tasks habit-item-list">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
  const bonusGroup=r==="parent"?'<section class="group habit-group"><div class="group-head habit-group-head"><h2>추가 상벌 보너스</h2></div>'+
   '<div class="bonus-list habit-item-list">'+d.bonusItems.map(item=>{
@@ -1877,6 +1936,8 @@ document.addEventListener("click",e=>{
   else if(act==="prev"){viewDay=nextDay(viewDay,-1);render();}
   else if(act==="next"&&viewDay<seoulToday()){viewDay=nextDay(viewDay);render();}
   else if(act==="toggle")toggleItem(hid,t.dataset.item);
+  else if(act==="past-toggle"&&role()==="parent")parentPastToggle(hid,t.dataset.item);
+  else if(act==="past-complete"&&role()==="parent")parentPastComplete(hid);
   else if(act==="complete")submitSimple(hid);
   else if(act==="review")review(hid,t.dataset.status);
   else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
