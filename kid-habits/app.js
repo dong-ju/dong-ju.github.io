@@ -526,13 +526,18 @@ function savePastPreview(d){
   enqueueParentSave(d);
  }else localStorage.setItem(STORE,JSON.stringify(d));
 }
+/* Timestamp only new parent backfill checks at 23:50 of their selected
+   Korean calendar day. Real approval and audit times remain unchanged. */
+function pastCheckTime(day){
+ return new Date(day+"T23:50:00+09:00").toISOString();
+}
 function parentPastToggle(hid,itemId){
  const {d,h,day,c}=pastCheckContext(hid);
  const items=shownItems(d,h,day),item=items.find(x=>x.id===itemId);
  if(!item)return;
  const key=checkKey(hid,day),done=new Set(checked(d,hid,day));
  if(!d.subcheckTimes[key])d.subcheckTimes[key]={};
- const now=new Date().toISOString();
+ const checkedAt=pastCheckTime(day);
  if(done.has(itemId)){
   done.delete(itemId);delete d.subcheckTimes[key][itemId];
  }else{
@@ -540,15 +545,18 @@ function parentPastToggle(hid,itemId){
   if(group)items.filter(x=>String(x.group||"").trim()===group).forEach(x=>{
    done.delete(x.id);delete d.subcheckTimes[key][x.id];
   });
-  done.add(itemId);d.subcheckTimes[key][itemId]=now;
+  done.add(itemId);d.subcheckTimes[key][itemId]=checkedAt;
  }
  d.subchecks[key]=Array.from(done);
  if(taskUnitsDone(h,done)){
   pushCheck(d,h,day);
   const pending=check(d,hid,day);
-  if(pending)pending.completed_items=selectedTaskItems(h,done).map(i=>({
-   title:i.title,at:d.subcheckTimes[key][i.id]||now
-  }));
+  if(pending){
+   pending.submitted_at=checkedAt;
+   pending.completed_items=selectedTaskItems(h,done).map(i=>({
+    title:i.title,at:d.subcheckTimes[key][i.id]||checkedAt
+   }));
+  }
  }else if(c?.status==="pending"||c?.status==="rejected"){
   d.checks=d.checks.filter(x=>x!==c);
  }
@@ -561,7 +569,10 @@ function parentPastComplete(hid){
  else{
   pushCheck(d,h,day);
   const pending=check(d,hid,day);
-  if(pending)pending.completed_items=[];
+  if(pending){
+   pending.submitted_at=pastCheckTime(day);
+   pending.completed_items=[];
+  }
  }
  savePastPreview(d);render();
 }
