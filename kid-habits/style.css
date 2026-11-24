@@ -2435,9 +2435,9 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 }
 
 
-/* v47: parent-only checkboxes on a previously selected day.
-   Interactive rows inherit the same geometry as ordinary child checklist rows. */
-.view-parent.screen-today .habit-card .parent-past-check{
+/* v47: parent-owned child preview, editable only on a historical day.
+   The child's real screen keeps its original controls. */
+.view-child.parent-preview.screen-today .habit-card .parent-past-check{
  display:flex;
  align-items:center;
  width:100%;
@@ -2451,28 +2451,71 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  cursor:pointer;
  touch-action:manipulation;
 }
-.view-parent.screen-today .habit-card .parent-past-check:active{
+.view-child.parent-preview.screen-today .habit-card .parent-past-check:active{
  background:#f0f6f1;
 }
-.view-parent.screen-today .habit-card .parent-past-check:focus-visible{
+.view-child.parent-preview.screen-today .habit-card .parent-past-check:focus-visible{
  outline:2px solid #4d8666;
  outline-offset:1px;
 }
-.view-parent.screen-today .habit-card .parent-past-check.task-label{
+.view-child.parent-preview.screen-today .habit-card .parent-past-check.task-label{
  padding:4px 0;
  color:#23322c;
 }
-.view-parent.screen-today .habit-card .parent-past-check .task-name{
+.view-child.parent-preview.screen-today .habit-card .parent-past-check .task-name{
  color:#23322c;
 }
-.view-parent.screen-today .habit-card .parent-past-check.subitem{
+.view-child.parent-preview.screen-today .habit-card .parent-past-check.subitem{
  padding-right:4px;
 }
-.view-parent.screen-today .past-check-hint{
+.view-child.parent-preview.screen-today .past-check-hint{
  margin-left:auto;
  flex:0 0 auto;
  font-size:11px;
  font-weight:560;
  color:#917c52;
  white-space:nowrap;
+}
+
+
+/* Compact date navigation only inside the parent's temporary child preview. */
+.view-child.parent-preview.screen-today .child-preview-daybar{
+ display:flex;
+ align-items:center;
+ justify-content:center;
+ gap:10px;
+ margin:5px 0 6px;
+ min-height:43px;
+ color:#435a4a;
+}
+.view-child.parent-preview.screen-today .child-preview-daybar strong{
+ flex:0 1 160px;
+ min-width:0;
+ text-align:center;
+ font-size:15px;
+ font-weight:740;
+}
+.view-child.parent-preview.screen-today .child-preview-daybar .date-button{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ width:43px;
+ height:42px;
+ flex:0 0 43px;
+ padding:4px;
+ border-radius:9px;
+}
+.view-child.parent-preview.screen-today .child-preview-daybar .date-button:disabled{
+ opacity:.28;
+}
+.view-child.parent-preview.screen-today .child-preview-note{
+ margin:0 0 12px;
+ padding:0 3px;
+ text-align:center;
+ font-size:12px;
+ line-height:1.5;
+ color:#748177;
+}
+.view-child.parent-preview.screen-today .past-check-hint{
+ font-size:11px;
 }
