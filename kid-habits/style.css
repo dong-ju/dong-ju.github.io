@@ -2495,6 +2495,27 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  font-size:15px;
  font-weight:740;
 }
+.view-child.parent-preview.screen-today .child-preview-daybar .child-preview-date-input{
+ flex:0 1 176px;
+ width:min(48vw,176px);
+ min-width:0;
+ max-width:176px;
+ min-height:42px;
+ padding:7px 9px;
+ border:1px solid #dfe9e0;
+ border-radius:9px;
+ background:#fff;
+ color:#345142;
+ text-align:center;
+ font-size:14px;
+ font-weight:700;
+ font-variant-numeric:tabular-nums;
+ color-scheme:light;
+}
+.view-child.parent-preview.screen-today .child-preview-daybar .child-preview-date-input:focus-visible{
+ outline:2px solid #418262;
+ outline-offset:1px;
+}
 .view-child.parent-preview.screen-today .child-preview-daybar .date-button{
  display:inline-flex;
  align-items:center;
