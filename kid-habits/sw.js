@@ -1,12 +1,12 @@
-const CACHE="kid-habits-good-habit-v47",HOME="/kid-habits/";
+const CACHE="kid-habits-good-habit-v48",HOME="/kid-habits/";
 const APP_ASSETS=[
  HOME,
- HOME+"app.js?v=47",
- HOME+"style.css?v=47",
+ HOME+"app.js?v=48",
+ HOME+"style.css?v=48",
  HOME+"app.js",
  HOME+"style.css",
- HOME+"good-habit-icon-transparent-512.png?v=47",
- HOME+"good-habit-icon-transparent-192.png?v=47",
+ HOME+"good-habit-icon-transparent-512.png?v=48",
+ HOME+"good-habit-icon-transparent-192.png?v=48",
  HOME+"good-habit-icon-maskable-512-v45.png",
  HOME+"manifest.webmanifest"
 ];
