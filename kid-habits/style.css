@@ -2433,3 +2433,46 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  opacity:1;
  cursor:default;
 }
+
+
+/* v47: parent-only checkboxes on a previously selected day.
+   Interactive rows inherit the same geometry as ordinary child checklist rows. */
+.view-parent.screen-today .habit-card .parent-past-check{
+ display:flex;
+ align-items:center;
+ width:100%;
+ min-width:0;
+ background:transparent;
+ border:0;
+ border-radius:8px;
+ color:#465a4e;
+ text-align:left;
+ font:inherit;
+ cursor:pointer;
+ touch-action:manipulation;
+}
+.view-parent.screen-today .habit-card .parent-past-check:active{
+ background:#f0f6f1;
+}
+.view-parent.screen-today .habit-card .parent-past-check:focus-visible{
+ outline:2px solid #4d8666;
+ outline-offset:1px;
+}
+.view-parent.screen-today .habit-card .parent-past-check.task-label{
+ padding:4px 0;
+ color:#23322c;
+}
+.view-parent.screen-today .habit-card .parent-past-check .task-name{
+ color:#23322c;
+}
+.view-parent.screen-today .habit-card .parent-past-check.subitem{
+ padding-right:4px;
+}
+.view-parent.screen-today .past-check-hint{
+ margin-left:auto;
+ flex:0 0 auto;
+ font-size:11px;
+ font-weight:560;
+ color:#917c52;
+ white-space:nowrap;
+}
