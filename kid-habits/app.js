@@ -381,16 +381,21 @@ function save(d){
 function role(){
  return childPreview||(hasSyncToken()&&serverDevice?serverDevice.role==="child":localStorage.getItem(MODE)==="child")?"child":"parent";
 }
+function isParentPreview(){
+ return !!childPreview&&(hasSyncToken()?serverDevice?.role==="parent":localStorage.getItem(MODE)!=="child");
+}
 function previewChild(){
  if(role()!=="parent")return;
- // Temporary interactive child session opened by the parent; device role is unchanged.
+ // Parent-owned device temporarily displays the child UI.
  childPreview=true;
  screen="today";statsAnchor=seoulToday();viewDay=seoulToday();render();
 }
 function returnToParent(){
- if(!childPreview||localStorage.getItem(MODE)==="child")return;
+ if(!isParentPreview())return;
+ const backfillDay=viewDay<seoulToday()?viewDay:seoulToday();
  childPreview=false;
- screen="today";viewDay=seoulToday();statsAnchor=seoulToday();render();
+ // Show the same past date in parent mode so a pending check can be approved.
+ screen="today";viewDay=backfillDay;statsAnchor=seoulToday();render();
 }
 function dateLabel(day){return Number(day.slice(5,7))+"월 "+Number(day.slice(8,10))+"일";}
 function time(n){n=Number(n)||0;return (n<0?"−":"")+(Math.abs(n)<60?Math.abs(n)+"분":Math.floor(Math.abs(n)/60)+"시간"+(Math.abs(n)%60?" "+Math.abs(n)%60+"분":""));}
@@ -500,17 +505,26 @@ function submitSimple(hid){
 /* Parent-only corrections for a previous day.
    Keep the date of the work separate from the time the parent records it. */
 function pastCheckAllowed(d,h,day){
- return role()==="parent"&&screen==="today"&&
+ return isParentPreview()&&screen==="today"&&day===viewDay&&
   /^\d{4}-\d{2}-\d{2}$/.test(day)&&
   day<seoulToday()&&day>=d.started_on&&day>=(h.created_on||d.started_on);
 }
 function pastCheckContext(hid){
- requireParent();
+ if(!isParentPreview())throw Error("부모의 아이 모드 미리보기에서만 지난 날짜를 체크할 수 있습니다.");
  const d=read(),h=habit(d,hid),day=viewDay;
- if(!pastCheckAllowed(d,h,day))throw Error("지난 날짜의 할 일만 부모가 체크할 수 있습니다.");
+ if(!pastCheckAllowed(d,h,day))throw Error("지난 날짜의 할 일만 체크할 수 있습니다.");
  const c=check(d,h.id,day);
  if(c?.status==="approved")throw Error("이미 완료된 날짜입니다. 기록을 먼저 확인해주세요.");
  return {d,h,day,c};
+}
+function savePastPreview(d){
+ if(!isParentPreview())throw Error("부모만 지난 날짜 체크를 저장할 수 있습니다.");
+ if(hasSyncToken()){
+  if(!serverReady||!syncOnline||navigator.onLine===false||childActionBusy||queuedChildActions.length)
+   throw Error("온라인 동기화가 완료된 후 다시 체크해주세요.");
+  serverState=copyState(d);
+  enqueueParentSave(d);
+ }else localStorage.setItem(STORE,JSON.stringify(d));
 }
 function parentPastToggle(hid,itemId){
  const {d,h,day,c}=pastCheckContext(hid);
@@ -538,7 +552,7 @@ function parentPastToggle(hid,itemId){
  }else if(c?.status==="pending"||c?.status==="rejected"){
   d.checks=d.checks.filter(x=>x!==c);
  }
- save(d);render();
+ savePastPreview(d);render();
 }
 function parentPastComplete(hid){
  const {d,h,day,c}=pastCheckContext(hid);
@@ -549,7 +563,7 @@ function parentPastComplete(hid){
   const pending=check(d,hid,day);
   if(pending)pending.completed_items=[];
  }
- save(d);render();
+ savePastPreview(d);render();
 }
 function review(hid,status){
  requireParent();const d=read(),h=habit(d,hid),day=viewDay,c=check(d,hid,day);
@@ -743,7 +757,7 @@ function renderTask(d,h,day,r){
  const c=check(d,h.id,day),items=shownItems(d,h,day),
   done=new Set(checked(d,h.id,day)),isParent=r==="parent",state=status(c),
   complete=c?.status==="approved",pending=c?.status==="pending",
-  parentPast=isParent&&pastCheckAllowed(d,h,day)&&!complete,
+  previewPast=!isParent&&pastCheckAllowed(d,h,day)&&!complete,
   allTicked=complete||(items.length>0?taskUnitsDone(h,done):pending);
  // For legacy approved records, restore visible ticks from saved item titles
  // only if the original subcheck ID list is unavailable.
@@ -759,9 +773,7 @@ function renderTask(d,h,day,r){
  const checkedMark='<span class="dot '+(allTicked?"on":"")+'">'+(allTicked?"✓":"")+'</span>';
  const label='<span class="task-name">'+safe(h.title)+'</span>';
  const titleRow=!isParent&&items.length===0?
-  '<button type="button" class="task-label task-click task-single-check" data-action="complete" data-id="'+safe(h.id)+'" aria-label="'+safe(h.title)+' 완료 체크" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
-  parentPast&&items.length===0?
-  '<button type="button" class="task-label task-click parent-past-check" data-action="past-complete" data-id="'+safe(h.id)+'" aria-pressed="'+(pending?"true":"false")+'" aria-label="'+safe(h.title)+' 지난 날짜 체크">'+checkedMark+label+'</button>':
+  '<button type="button" class="task-label task-click task-single-check '+(previewPast?"parent-past-check":"")+'" data-action="'+(previewPast?"past-complete":"complete")+'" data-id="'+safe(h.id)+'" aria-label="'+safe(h.title)+' 완료 체크" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
   '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
  // Editing is available in one separate parent settings window.
@@ -774,9 +786,9 @@ function renderTask(d,h,day,r){
     const checkedNow=done.has(item.id),marked=complete&&(isGroup?checkedNow: true)||checkedNow;
     const dot='<span class="dot '+(marked?"on":"")+'">'+(marked?"✓":"")+'</span>';
     const label=dot+'<span>'+safe(item.title)+'</span>';
-    return isParent&&!parentPast?
+    return isParent?
      '<div class="subitem habit-subitem">'+label+'</div>':
-     '<button type="button" class="subitem selectable habit-subitem '+(parentPast?"parent-past-check":"")+'" data-action="'+(parentPast?"past-toggle":"toggle")+'" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" aria-pressed="'+(marked?"true":"false")+'" '+(complete?"disabled":"")+'>'+label+'</button>';
+     '<button type="button" class="subitem selectable habit-subitem '+(previewPast?"parent-past-check":"")+'" data-action="'+(previewPast?"past-toggle":"toggle")+'" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" aria-pressed="'+(marked?"true":"false")+'" '+(complete?"disabled":"")+'>'+label+'</button>';
    };
    if(!isGroup)return option(unit.items[0]);
    return '<div class="subgroup '+(selected||complete?"subgroup-done":"")+'">'+
@@ -1207,7 +1219,7 @@ function renderChildProgress(d,active,day){
    '<strong class="'+(num>=0?"positive":"negative")+'">'+(num>0?"+":"")+num+'분</strong></div>';
  }).join("");
  return '<section class="child-progress" aria-label="오늘 진행 상황">'+
-  '<div class="child-section-title">오늘 진행</div>'+
+  '<div class="child-section-title">'+(isParentPreview()&&day<seoulToday()?"선택한 날짜 진행":"오늘 진행")+'</div>'+
   '<div class="child-progress-top"><strong>'+done+' <span>/ '+total+'</span></strong><span>'+percent+'%</span></div>'+
   '<div class="child-progress-track" role="progressbar" aria-label="오늘 체크한 항목" aria-valuemin="0" aria-valuemax="'+total+'" aria-valuenow="'+done+'">'+
   '<span style="width:'+percent+'%"></span></div>'+
@@ -1334,11 +1346,17 @@ function render(){
   '</section>';
  const nav=r==="child"?
   '<nav class="child-view-tabs" aria-label="조회 기간">'+
-   el("오늘","view-tab "+(screen==="today"?"selected":""),"child-tab",'data-tab="today" aria-pressed="'+(screen==="today")+'"')+
+   el(isParentPreview()?"일별":"오늘","view-tab "+(screen==="today"?"selected":""),"child-tab",'data-tab="today" aria-pressed="'+(screen==="today")+'"')+
    el("주간","view-tab "+(screen==="week"?"selected":""),"child-tab",'data-tab="week" aria-pressed="'+(screen==="week")+'"')+
    el("월간","view-tab "+(screen==="month"?"selected":""),"child-tab",'data-tab="month" aria-pressed="'+(screen==="month")+'"')+
    '</nav>'+
-   (screen==="today"?'<div class="child-day-heading">'+dateLabel(day)+'</div>':""):
+   (screen==="today"?(isParentPreview()?
+    '<div class="child-preview-daybar">'+
+     el("‹","date-button","preview-prev",'aria-label="이전 날짜" '+(day<=d.started_on?"disabled":""))+
+     '<strong>'+dateLabel(day)+'</strong>'+
+     el("›","date-button","preview-next",'aria-label="다음 날짜" '+(day>=seoulToday()?"disabled":""))+
+     '</div>'+(day<seoulToday()?'<p class="child-preview-note">부모가 지난 날짜를 체크합니다. 전체 체크 후 부모 모드에서 확인하세요.</p>':""):
+    '<div class="child-day-heading">'+dateLabel(day)+'</div>'):""):
   screen==="today"?
    '<div class="daybar">'+el("‹","date-button","prev",'aria-label="전날"')+'<span>'+dateLabel(day)+'</span>'+
    el("›","date-button","next",'aria-label="다음 날" '+(day>=seoulToday()?"disabled":""))+
@@ -1347,7 +1365,7 @@ function render(){
    el("주간","tiny "+(statsUnit==="week"?"active":""),"statmode",'data-mode="week"')+
    el("월간","tiny "+(statsUnit==="month"?"active":""),"statmode",'data-mode="month"')+'</div>';
  const taskGroup='<section class="group habit-group"><div class="group-head habit-group-head"><h2>매일 할 일</h2>'+
-  (r==="parent"&&day<seoulToday()&&day>=d.started_on?'<small class="past-check-hint">지난 날짜 · 부모 체크</small>':"")+'</div>'+
+  (isParentPreview()&&day<seoulToday()?'<small class="past-check-hint">부모가 지난 날짜 기록 중</small>':"")+'</div>'+
   '<div class="tasks habit-item-list">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
  const bonusGroup=r==="parent"?'<section class="group habit-group"><div class="group-head habit-group-head"><h2>추가 상벌 보너스</h2></div>'+
   '<div class="bonus-list habit-item-list">'+d.bonusItems.map(item=>{
@@ -1366,7 +1384,7 @@ function render(){
   screen==="month"?renderMonthlyCompletion(d,active,statsAnchor):
   renderHistory(d,statsUnit,statsAnchor);
  if(r==="child"){
-  app.innerHTML='<main class="wrap view-child screen-'+screen+'">'+header(r)+
+  app.innerHTML='<main class="wrap view-child screen-'+screen+(isParentPreview()?" parent-preview":"")+'">'+header(r)+
    '<aside class="child-aside" aria-label="나의 진행 상황">'+balance+renderChildProgress(d,active,day)+'</aside>'+
    '<div class="child-work">'+nav+content+'</div></main>';
  }else{
@@ -1933,11 +1951,18 @@ document.addEventListener("click",e=>{
    if(dest!=="today")statsAnchor=seoulToday();
    render();
   }
-  else if(act==="prev"){viewDay=nextDay(viewDay,-1);render();}
-  else if(act==="next"&&viewDay<seoulToday()){viewDay=nextDay(viewDay);render();}
+  else if(act==="prev"&&role()==="parent"){viewDay=nextDay(viewDay,-1);render();}
+  else if(act==="next"&&role()==="parent"&&viewDay<seoulToday()){viewDay=nextDay(viewDay);render();}
+  else if(act==="preview-prev"&&isParentPreview()&&screen==="today"){
+   const earliest=read().started_on;
+   if(viewDay>earliest){viewDay=nextDay(viewDay,-1);render();}
+  }
+  else if(act==="preview-next"&&isParentPreview()&&screen==="today"&&viewDay<seoulToday()){
+   viewDay=nextDay(viewDay);render();
+  }
   else if(act==="toggle")toggleItem(hid,t.dataset.item);
-  else if(act==="past-toggle"&&role()==="parent")parentPastToggle(hid,t.dataset.item);
-  else if(act==="past-complete"&&role()==="parent")parentPastComplete(hid);
+  else if(act==="past-toggle"&&isParentPreview())parentPastToggle(hid,t.dataset.item);
+  else if(act==="past-complete"&&isParentPreview())parentPastComplete(hid);
   else if(act==="complete")submitSimple(hid);
   else if(act==="review")review(hid,t.dataset.status);
   else if(act==="bulk-edit"&&role()==="parent")bulkEditor();
