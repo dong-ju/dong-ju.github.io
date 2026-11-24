@@ -1335,7 +1335,7 @@ function render(){
     el("다시 불러오기","primary","sync-retry")+'</section></main>';
   return;
  }
- const d=read(),r=role(),day=r==="child"?seoulToday():viewDay;
+ const d=read(),r=role(),day=r==="child"&&!isParentPreview()?seoulToday():viewDay;
  if(r==="parent"&&day>seoulToday())viewDay=seoulToday();
  const active=d.habits.filter(h=>h.active).sort((a,b)=>a.sort_order-b.sort_order);
  const pending=d.checks.filter(c=>c.status==="pending").length;
@@ -1353,7 +1353,7 @@ function render(){
    (screen==="today"?(isParentPreview()?
     '<div class="child-preview-daybar">'+
      el("‹","date-button","preview-prev",'aria-label="이전 날짜" '+(day<=d.started_on?"disabled":""))+
-     '<strong>'+dateLabel(day)+'</strong>'+
+     '<input type="date" class="child-preview-date-input" data-action="preview-date" aria-label="날짜 직접 선택" value="'+safe(day)+'" min="'+safe(d.started_on)+'" max="'+seoulToday()+'">'+
      el("›","date-button","preview-next",'aria-label="다음 날짜" '+(day>=seoulToday()?"disabled":""))+
      '</div>'+(day<seoulToday()?'<p class="child-preview-note">부모가 지난 날짜를 체크합니다. 전체 체크 후 부모 모드에서 확인하세요.</p>':""):
     '<div class="child-day-heading">'+dateLabel(day)+'</div>'):""):
@@ -2078,6 +2078,13 @@ document.addEventListener("input",e=>{
  bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
 });
 document.addEventListener("change",e=>{
+ if(e.target.matches?.('[data-action="preview-date"]')){
+  if(!isParentPreview()||screen!=="today")return;
+  const next=e.target.value,earliest=read().started_on;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(next)&&next>=earliest&&next<=seoulToday())viewDay=next;
+  render();
+  return;
+ }
  const row=e.target.closest?.(".bulk-row");
  if(!row||role()!=="parent")return;
  bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
