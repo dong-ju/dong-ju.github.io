@@ -764,6 +764,11 @@ function keyboardRowDrag(event){
  bulkDirty(document.getElementById("bulkForm"));handle.focus();
 }
 function status(c){return c?.status==="approved"?"완료":c?.status==="rejected"?"다시 하기":"";}
+/* Display the real saved check time, without inventing times for older records. */
+function checkTimeMarkup(value){
+ const stamp=value?formatMoment(value):"";
+ return '<small class="child-check-time" '+(stamp?"":'hidden ')+'aria-label="'+(stamp?'체크 시각 '+safe(stamp):'')+'">'+safe(stamp)+'</small>';
+}
 function renderTask(d,h,day,r){
  const c=check(d,h.id,day),items=shownItems(d,h,day),
   done=new Set(checked(d,h.id,day)),isParent=r==="parent",state=status(c),
@@ -783,8 +788,9 @@ function renderTask(d,h,day,r){
  }
  const checkedMark='<span class="dot '+(allTicked?"on":"")+'">'+(allTicked?"✓":"")+'</span>';
  const label='<span class="task-name">'+safe(h.title)+'</span>';
+ const singleTime=!isParent&&items.length===0?checkTimeMarkup((pending||complete)?c?.submitted_at:null):"";
  const titleRow=!isParent&&items.length===0?
-  '<button type="button" class="task-label task-click task-single-check '+(previewPast?"parent-past-check":"")+'" data-action="'+(previewPast?"past-complete":"complete")+'" data-id="'+safe(h.id)+'" aria-label="'+safe(h.title)+' 완료 체크" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+'</button>':
+  '<button type="button" class="task-label task-click task-single-check '+(previewPast?"parent-past-check":"")+'" data-action="'+(previewPast?"past-complete":"complete")+'" data-id="'+safe(h.id)+'" aria-label="'+safe(h.title)+' 완료 체크" aria-pressed="'+(allTicked?"true":"false")+'" '+(complete?"disabled":"")+'>'+checkedMark+label+singleTime+'</button>':
   '<div class="task-label">'+checkedMark+label+'</div>';
  const actions=[];
  // Editing is available in one separate parent settings window.
@@ -796,7 +802,10 @@ function renderTask(d,h,day,r){
    const option=item=>{
     const checkedNow=done.has(item.id),marked=complete&&(isGroup?checkedNow: true)||checkedNow;
     const dot='<span class="dot '+(marked?"on":"")+'">'+(marked?"✓":"")+'</span>';
-    const label=dot+'<span>'+safe(item.title)+'</span>';
+    const label=dot+'<span class="child-subitem-name">'+safe(item.title)+'</span>'+
+     (isParent?"":checkTimeMarkup(marked?(d.subcheckTimes?.[checkKey(h.id,day)]?.[item.id]||
+       c?.completed_items?.find(x=>x.title===item.title)?.at||
+       c?.confirmed_items?.find(x=>x.title===item.title)?.at):null));
     return isParent?
      '<div class="subitem habit-subitem">'+label+'</div>':
      '<button type="button" class="subitem selectable habit-subitem '+(previewPast?"parent-past-check":"")+'" data-action="'+(previewPast?"past-toggle":"toggle")+'" data-id="'+safe(h.id)+'" data-item="'+safe(item.id)+'" aria-pressed="'+(marked?"true":"false")+'" '+(complete?"disabled":"")+'>'+label+'</button>';
@@ -853,6 +862,13 @@ function refreshChildCheckView(d){
   node.classList.toggle("on",on);
   node.textContent=on?"✓":"";
  };
+ const setTime=(node,value)=>{
+  if(!node)return;
+  const stamp=value?formatMoment(value):"";
+  node.textContent=stamp;
+  node.hidden=!stamp;
+  node.setAttribute("aria-label",stamp?"체크 시각 "+stamp:"");
+ };
  prepared.forEach(entry=>{
   if(entry.approved)return;
   const {h,card,c,options,groups,groupNodes,done}=entry;
@@ -864,10 +880,14 @@ function refreshChildCheckView(d){
   card.classList.remove("task-done");
   setDot(card.querySelector(".task-top .task-label .dot"),complete);
   card.querySelector(".task-click")?.setAttribute("aria-pressed",String(complete));
+  if(!(h.items||[]).length)
+   setTime(card.querySelector(".task-click .child-check-time"),pending?c?.submitted_at:null);
   options.forEach(button=>{
    const marked=done.has(button.dataset.item);
    button.setAttribute("aria-pressed",String(marked));
    setDot(button.querySelector(".dot"),marked);
+   setTime(button.querySelector(".child-check-time"),
+    marked?d.subcheckTimes?.[checkKey(h.id,today)]?.[button.dataset.item]:null);
   });
   groups.forEach((group,index)=>{
    groupNodes[index].classList.toggle("subgroup-done",group.items.some(item=>done.has(item.id)));
@@ -1223,7 +1243,8 @@ function renderChildProgress(d,active,day){
  const weekly=scoreTotals(d,period("week",day).start,period("week",day).end);
  const recent=d.ledger.filter(l=>l.kind!=="spend").slice(0,4).map(l=>{
   const num=Number(l.minutes)||0,
-    moment=formatMoment(l.created_at),
+    moment=formatMoment(l.kind==="habit"?
+      d.checks.find(c=>c.id===l.check_id)?.submitted_at||l.created_at:l.created_at),
     detail=l.kind==="penalty"&&l.reason?'<small class="child-event-reason">'+safe(l.reason)+'</small>':"";
   return '<div class="child-event"><div class="child-event-text"><span>'+safe(l.description||"보너스")+'</span>'+
    '<small>'+safe(l.day)+(moment?' · '+safe(moment):"")+'</small>'+detail+'</div>'+
@@ -1859,10 +1880,13 @@ function renderHistory(d,unit,anchor){
     detailsUI(p.details)+'</div><b class="waiting">진행 중</b></div>';
   }
   const l=row.data,num=Number(l.minutes)||0;
+  const childCheckAt=role()==="child"&&l.kind==="habit"?
+    d.checks.find(c=>c.id===l.check_id)?.submitted_at:null;
+  const shownAt=childCheckAt||l.created_at;
   const cancel=role()==="parent"&&canCancelLedger(l)?
    el("취소","tiny cancel-record","cancel-record",'data-id="'+safe(l.id)+'" title="당일 적용 기록 취소"'):"";
   return '<div class="log"><div><strong>'+safe(l.description||labels[l.kind])+'</strong>'+
-   '<small>'+safe(l.day)+' · '+formatMoment(l.created_at)+' · '+(labels[l.kind]||"")+'</small>'+
+   '<small>'+safe(l.day)+' · '+formatMoment(shownAt)+' · '+(labels[l.kind]||"")+'</small>'+
    logDetails(d,l)+'</div><div class="log-end"><b class="'+(num>=0?"positive":"negative")+'">'+(num>0?"+":"")+num+'분</b>'+
    cancel+'</div></div>';
  }).join("");
