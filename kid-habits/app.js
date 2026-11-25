@@ -1943,7 +1943,7 @@ function bonusApply(id){
   '<div class="apply-value '+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</div>'+
   '<label>사유 (선택)<input id="bonusApplyReason" maxlength="100" autocomplete="off" placeholder="필요할 때만 작성"></label>'+
   '<div class="form-actions">'+el("취소","ghost","close")+
-  '<button type="button" class="primary" data-action="bonus-confirm" data-id="'+safe(item.id)+'">확인 후 적용</button></div></div>');
+  '<button type="button" autofocus class="primary" data-action="bonus-confirm" data-id="'+safe(item.id)+'">확인 후 적용</button></div></div>');
  // Focus the apply action rather than the optional reason field.
  dialogBody.querySelector('[data-action="bonus-confirm"]')?.focus({preventScroll:true});
 }
@@ -2178,8 +2178,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v52")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v52","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v53")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v53","1");
   window.location.reload();
  });
 }
