@@ -2540,3 +2540,29 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 .view-child.parent-preview.screen-today .past-check-hint{
  font-size:11px;
 }
+
+/* v50: show the actual child check time, not the parent's review time.
+   Child-only labels stay aligned across ordinary and grouped subtasks. */
+.view-child.screen-today .habit-card .child-subitem-name{
+ flex:1 1 auto;
+ min-width:0;
+ overflow-wrap:anywhere;
+}
+.view-child.screen-today .habit-card .task-label .task-name{
+ flex:1 1 auto;
+ min-width:0;
+}
+.view-child.screen-today .habit-card .child-check-time{
+ flex:0 0 auto;
+ margin-left:auto;
+ padding-left:6px;
+ font-size:12px;
+ font-weight:590;
+ line-height:1.4;
+ color:#75857b;
+ white-space:nowrap;
+ font-variant-numeric:tabular-nums;
+}
+.view-child.screen-today .habit-card .child-check-time[hidden]{
+ display:none!important;
+}
