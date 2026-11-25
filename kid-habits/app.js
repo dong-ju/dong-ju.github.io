@@ -1316,12 +1316,15 @@ function renderOneTimeTasks(d,r){
   const first=timestamp(a),second=timestamp(b);
   return Number.isFinite(first)&&Number.isFinite(second)?first-second:0;
  }):[];
- const pending=all.filter(t=>!t.completedAt),completed=all.filter(t=>t.completedAt);
+ const today=seoulToday();
+ const pending=all.filter(t=>!t.completedAt&&t.dueOn>=today);
+ const expired=all.filter(t=>!t.completedAt&&t.dueOn<today);
+ const completed=all.filter(t=>t.completedAt);
  const isParent=r==="parent";
  const card=t=>{
-  const done=!!t.completedAt,overdue=!done&&t.dueOn<seoulToday();
+  const done=!!t.completedAt,overdue=!done&&t.dueOn<today;
   const editable=isParent||t.creatorRole==="child";
-  const canComplete=r==="child"&&serverDevice?.role==="child";
+  const canComplete=r==="child"&&serverDevice?.role==="child"&&!overdue;
   const attrs='data-id="'+safe(t.id)+'"';
   const dot='<span class="dot '+(done?"on":"")+'">'+(done?"✓":"")+'</span>';
   const labelText='<span class="one-time-label-text"><span class="task-name">'+safe(t.title)+'</span>'+
@@ -1346,6 +1349,8 @@ function renderOneTimeTasks(d,r){
    '</div>'+
    (completed.length?'<div class="one-time-subhead">완료한 할 일</div>'+
     '<div class="one-time-drag-group habit-item-list" data-status="completed">'+completed.map(card).join("")+'</div>':"")+
+   (expired.length?'<div class="one-time-subhead">기한 지난 할 일 · '+expired.length+'건 (보너스 없음)</div>'+
+    '<div class="one-time-drag-group habit-item-list" data-status="expired">'+expired.map(card).join("")+'</div>':"")+
   '</div></section>';
 }
 function oneTimeEditor(task){
@@ -1939,13 +1944,12 @@ function bonusApply(id){
  const item=read().bonusItems.find(x=>x.id===id&&x.active!==false);
  if(!item)throw Error("등록된 항목을 찾지 못했습니다.");
  // Avoid native GET form submissions even if submit delegation is interrupted.
- open('<div id="bonusApplyPanel" class="form"><h2>'+safe(item.title)+'</h2>'+
+ open('<div id="bonusApplyPanel" class="form"><h2 tabindex="-1" autofocus style="outline:none">'+safe(item.title)+'</h2>'+
   '<div class="apply-value '+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</div>'+
   '<label>사유 (선택)<input id="bonusApplyReason" maxlength="100" autocomplete="off" placeholder="필요할 때만 작성"></label>'+
   '<div class="form-actions">'+el("취소","ghost","close")+
-  '<button type="button" autofocus class="primary" data-action="bonus-confirm" data-id="'+safe(item.id)+'">확인 후 적용</button></div></div>');
- // Focus the apply action rather than the optional reason field.
- dialogBody.querySelector('[data-action="bonus-confirm"]')?.focus({preventScroll:true});
+  '<button type="button" class="primary" data-action="bonus-confirm" data-id="'+safe(item.id)+'">확인 후 적용</button></div></div>');
+ // Only the non-interactive heading receives native modal focus; no input or button is preselected.
 }
 async function confirmBonusApply(button){
  if(bonusApplying)return;
@@ -2087,7 +2091,12 @@ document.addEventListener("click",e=>{
    const task=(read().oneTimeTasks||[]).find(x=>x.id===hid);
    if(task&&(role()==="parent"||task.creatorRole==="child"))oneTimeEditor(task);
   }
-  else if(act==="one-time-toggle"){void oneTimeAction("toggle",{id:hid});}
+  else if(act==="one-time-toggle"){
+   const task=(read().oneTimeTasks||[]).find(x=>x.id===hid);
+   if(!task){notify("할 일을 찾을 수 없습니다.");return;}
+   if(!task.completedAt&&task.dueOn<seoulToday()){notify("기한이 지난 할 일은 완료할 수 없습니다.");return;}
+   void oneTimeAction("toggle",{id:hid});
+  }
   else if(act==="one-time-delete"){
    const task=(read().oneTimeTasks||[]).find(x=>x.id===hid);
    if(task&&(role()==="parent"||task.creatorRole==="child")&&confirm("이 할 일을 삭제할까요?"))
@@ -2178,8 +2187,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v53")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v53","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v54")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v54","1");
   window.location.reload();
  });
 }
