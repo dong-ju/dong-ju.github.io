@@ -1938,11 +1938,28 @@ function bonusEditor(id){
 function bonusApply(id){
  const item=read().bonusItems.find(x=>x.id===id&&x.active!==false);
  if(!item)throw Error("등록된 항목을 찾지 못했습니다.");
- open('<form id="bonusApplyForm" class="form"><h2>'+safe(item.title)+'</h2>'+
-  '<input type="hidden" name="id" value="'+safe(item.id)+'">'+
+ // Avoid native GET form submissions even if submit delegation is interrupted.
+ open('<div id="bonusApplyPanel" class="form"><h2>'+safe(item.title)+'</h2>'+
   '<div class="apply-value '+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</div>'+
-  '<label>사유 (선택)<input name="reason" maxlength="100" placeholder="필요할 때만 작성"></label>'+
-  '<div class="form-actions">'+el("취소","ghost","close")+'<button class="primary" type="submit">확인 후 적용</button></div></form>');
+  '<label>사유 (선택)<input id="bonusApplyReason" maxlength="100" autocomplete="off" placeholder="필요할 때만 작성"></label>'+
+  '<div class="form-actions">'+el("취소","ghost","close")+
+  '<button type="button" class="primary" data-action="bonus-confirm" data-id="'+safe(item.id)+'">확인 후 적용</button></div></div>');
+ // Focus the apply action rather than the optional reason field.
+ dialogBody.querySelector('[data-action="bonus-confirm"]')?.focus({preventScroll:true});
+}
+async function confirmBonusApply(button){
+ if(bonusApplying)return;
+ const itemId=button.dataset.id;
+ const reason=String(document.getElementById("bonusApplyReason")?.value||"").trim();
+ button.disabled=true;
+ button.textContent="DB 저장 중...";
+ try{
+  const saved=await applyBonusItem(itemId,reason);
+  if(saved)close();
+ }catch(err){notify(err.message||"상벌 저장 실패");}
+ finally{
+  if(button.isConnected){button.disabled=false;button.textContent="확인 후 적용";}
+ }
 }
 function useDialog(){
  open('<form id="useForm" class="form"><h2>보너스 시간 사용</h2>'+
@@ -2080,6 +2097,7 @@ document.addEventListener("click",e=>{
   else if(act==="bonuses")bonusesPanel();
   // Bonus definitions are also edited together in the parent editor.
   else if(act==="bonus-apply")bonusApply(hid);
+  else if(act==="bonus-confirm"){void confirmBonusApply(t);}
   else if(act==="cancel-record")cancelLedger(hid);
   else if(act==="use")useDialog();
   else if(act==="pending"){
@@ -2096,7 +2114,7 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("submit",e=>{
  const f=e.target;
- if(!["bulkForm","bonusApplyForm","useForm","oneTimeForm"].includes(f.id))return;
+ if(!["bulkForm","useForm","oneTimeForm"].includes(f.id))return;
  e.preventDefault();
  const v=Object.fromEntries(new FormData(f).entries());
  try{
@@ -2109,16 +2127,6 @@ document.addEventListener("submit",e=>{
   if(f.id==="bulkForm"){
    if(activeBulkDetail)throw Error("상세 편집을 먼저 완료해주세요.");
    saveBulkEditor(f);f.dataset.dirty="0";close();
-  }
-  if(f.id==="bonusApplyForm"){
-   if(bonusApplying)return;
-   const submit=f.querySelector('[type="submit"]');
-   if(submit){submit.disabled=true;submit.textContent="DB 저장 중...";}
-   void applyBonusItem(v.id,String(v.reason||"").trim())
-    .then(ok=>{if(ok)close();})
-    .catch(err=>notify(err.message||"상벌 저장 실패"))
-    .finally(()=>{if(submit?.isConnected){submit.disabled=false;submit.textContent="확인 후 적용";}});
-   return;
   }
   if(f.id==="useForm"){useTime(v.minutes);close();}
  }catch(err){notify(err.message||"저장 실패");}
@@ -2170,8 +2178,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v51")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v51","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v52")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v52","1");
   window.location.reload();
  });
 }
