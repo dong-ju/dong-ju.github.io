@@ -1324,19 +1324,25 @@ function renderOneTimeTasks(d,r){
  const card=t=>{
   const done=!!t.completedAt,overdue=!done&&t.dueOn<today;
   const editable=isParent||t.creatorRole==="child";
-  const canComplete=r==="child"&&serverDevice?.role==="child"&&!overdue;
+  const lateByParent=done&&t.completedByRole==="parent";
+  const canComplete=r==="child"&&serverDevice?.role==="child"&&!overdue&&!lateByParent;
+  const canLateConfirm=isParent&&overdue;
+  const canUndoParent=isParent&&lateByParent;
   const attrs='data-id="'+safe(t.id)+'"';
   const dot='<span class="dot '+(done?"on":"")+'">'+(done?"✓":"")+'</span>';
   const labelText='<span class="one-time-label-text"><span class="task-name">'+safe(t.title)+'</span>'+
    '<small class="one-time-date">'+safe(dateLabel(t.dueOn))+
-   (overdue?" · 기한 지남":done?" · 완료":"")+'</small></span>';
+   (overdue?" · 기한 지남":done?(lateByParent?" · 부모 사후 확인":" · 완료"):"")+'</small></span>';
   const label=canComplete?
    '<button type="button" class="task-label one-time-check" data-action="one-time-toggle" '+attrs+
    ' aria-pressed="'+done+'" aria-label="'+safe(t.title)+' '+(done?"완료 취소":"완료")+'">'+dot+labelText+'</button>':
    '<div class="task-label">'+dot+labelText+'</div>';
   return '<article '+attrs+' class="task one-time-item habit-card '+(done?"is-done task-done":overdue?"is-overdue":"")+'">'+
    '<div class="task-top">'+label+
-   (editable?'<div class="one-time-actions">'+el("수정","tiny","one-time-edit",attrs)+
+   (editable?'<div class="one-time-actions">'+
+     (canLateConfirm?el("늦게 완료 확인","tiny apply","one-time-toggle",attrs):
+      canUndoParent?el("확인 취소","tiny","one-time-toggle",attrs):"")+
+     el("수정","tiny","one-time-edit",attrs)+
     el("삭제","tiny","one-time-delete",attrs)+'</div>':"")+
    '</div></article>';
  };
@@ -2094,7 +2100,16 @@ document.addEventListener("click",e=>{
   else if(act==="one-time-toggle"){
    const task=(read().oneTimeTasks||[]).find(x=>x.id===hid);
    if(!task){notify("할 일을 찾을 수 없습니다.");return;}
-   if(!task.completedAt&&task.dueOn<seoulToday()){notify("기한이 지난 할 일은 완료할 수 없습니다.");return;}
+   if(!task.completedAt&&task.dueOn<seoulToday()&&role()!=="parent"){
+    notify("기한이 지난 할 일은 부모만 사후 확인할 수 있습니다.");return;
+   }
+   if(role()==="parent"&&!((!task.completedAt&&task.dueOn<seoulToday())||
+       (task.completedAt&&task.completedByRole==="parent"))){
+    notify("부모는 기한 지난 할 일의 사후 확인만 할 수 있습니다.");return;
+   }
+   if(role()==="child"&&task.completedAt&&task.completedByRole==="parent"){
+    notify("부모가 확인한 기록은 부모만 취소할 수 있습니다.");return;
+   }
    void oneTimeAction("toggle",{id:hid});
   }
   else if(act==="one-time-delete"){
@@ -2187,8 +2202,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v54")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v54","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v55")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v55","1");
   window.location.reload();
  });
 }
