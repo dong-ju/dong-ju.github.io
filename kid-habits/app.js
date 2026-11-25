@@ -77,7 +77,7 @@ const SYNC_URL="https://dnvphihaopivjcvkvvud.supabase.co/functions/v1/good-habit
 let registering=false;
 let serverState=null,serverRevision=0,serverDevice=null,serverReady=false;
 let lastConfirmedState=null,syncOnline=true;
-let syncReading=false,syncWriteQueue=Promise.resolve(),outstandingWrites=0,childActionBusy=false;
+let syncReading=false,syncWriteQueue=Promise.resolve(),outstandingWrites=0,childActionBusy=false,bonusApplying=false;
 const queuedChildActions=[];
 function hasSyncToken(){return !!localStorage.getItem(SYNC_TOKEN);}
 function copyState(d){return JSON.parse(JSON.stringify(d));}
@@ -133,7 +133,10 @@ async function loadFromDatabase(force=false){
  if(!hasSyncToken()||syncReading||outstandingWrites||childActionBusy)return;
  syncReading=true;
  try{
+  const requestedRevision=serverRevision;
   let result=await syncRequest("state");
+  // Do not override pending local parent writes with a stale DB read.
+  if(outstandingWrites||childActionBusy||serverRevision!==requestedRevision)return;
   const previousState=serverState,previousRole=role();
   serverDevice=result.device;
   if(result.state){
@@ -167,14 +170,16 @@ async function loadFromDatabase(force=false){
  }finally{syncReading=false;}
 }
 function enqueueParentSave(documentState){
- if(!hasSyncToken())return;
+ if(!hasSyncToken())return Promise.resolve(true);
  outstandingWrites++;
+ refreshSyncIndicator();
  const snapshot=copyState(documentState);
  syncWriteQueue=syncWriteQueue.then(async()=>{
   const result=await syncRequest("save",{state:snapshot,revision:serverRevision});
   serverRevision=result.revision;
   lastConfirmedState=copyState(snapshot);syncOnline=true;
   lastSyncStatus="fresh";persistConfirmedState();refreshSyncIndicator();
+  return true;
  }).catch(async err=>{
   syncOnline=false;
   notify((err.status===409?"다른 기기에서 수정했습니다. ":"")+err.message);
@@ -185,11 +190,12 @@ function enqueueParentSave(documentState){
    serverReady=!!current.state;serverDevice=current.device;syncOnline=true;
    lastSyncStatus="fresh";persistConfirmedState();render();
   }catch(_){
-   // Do not leave a failed optimistic write displayed as committed.
    if(lastConfirmedState)serverState=copyState(lastConfirmedState);
    render();
   }
+  return false;
  }).finally(()=>{outstandingWrites--;refreshSyncIndicator();});
+ return syncWriteQueue;
 }
 function optimisticChildChange(action,hid,itemId){
  const d=copyState(serverState),day=seoulToday(),h=d.habits.find(x=>x.id===hid&&x.active);
@@ -373,10 +379,10 @@ function save(d){
    throw Error("온라인 연결이 필요합니다. 최신 내용을 확인한 뒤 다시 시도해주세요.");
   if(role()!=="parent")throw Error("아이 체크는 DB의 전용 체크 기능을 사용해야 합니다.");
   serverState=copyState(d);
-  enqueueParentSave(d);
-  return;
+  return enqueueParentSave(d);
  }
  localStorage.setItem(STORE,JSON.stringify(d));
+ return Promise.resolve(true);
 }
 function role(){
  return childPreview||(hasSyncToken()&&serverDevice?serverDevice.role==="child":localStorage.getItem(MODE)==="child")?"child":"parent";
@@ -602,14 +608,23 @@ function review(hid,status){
  }
  save(d);render();
 }
-function applyBonusItem(itemId,reason){
+async function applyBonusItem(itemId,reason){
  requireParent();
- const d=read(),item=d.bonusItems.find(x=>x.id===itemId&&x.active);
+ if(bonusApplying)throw Error("상벌 기록을 저장 중입니다.");
+ const d=read(),item=d.bonusItems.find(x=>x.id===itemId&&x.active!==false);
  if(!item)throw Error("등록된 부모 관리 보너스 항목만 사용할 수 있습니다.");
+ if(!Number.isInteger(item.minutes)||item.minutes===0)throw Error("상벌 시간을 확인해주세요.");
  const desc=String(reason||"").trim();
  if(desc.length>100)throw Error("사유는 100자 이하로 입력해주세요.");
- log(d,item.minutes>0?"bonus":"penalty",item.minutes,item.title,seoulToday(),null,{bonus_item_id:item.id,reason:desc});
- save(d);render();
+ bonusApplying=true;
+ try{
+  log(d,item.minutes>0?"bonus":"penalty",item.minutes,item.title,seoulToday(),null,{bonus_item_id:item.id,reason:desc});
+  const persisted=await save(d);
+  if(!persisted)return false;
+  render();
+  notify(item.title+" "+(item.minutes>0?"+":"")+item.minutes+"분 적용 · 남은 시간 "+time(totals(d)));
+  return true;
+ }finally{bonusApplying=false;}
 }
 function saveBonusItem(data){
  requireParent();
@@ -2096,12 +2111,14 @@ document.addEventListener("submit",e=>{
    saveBulkEditor(f);f.dataset.dirty="0";close();
   }
   if(f.id==="bonusApplyForm"){
-   const item=read().bonusItems.find(x=>x.id===v.id&&x.active!==false);
-   if(!item)throw Error("적용할 항목을 찾지 못했습니다.");
-   const amount=(item.minutes>0?"+":"")+item.minutes+"분";
-   const reason=String(v.reason||"").trim();
-   if(!confirm(item.title+" · "+amount+(reason?"\n사유: "+reason:"")+"\n적용하시겠습니까?"))return;
-   applyBonusItem(v.id,reason);close();
+   if(bonusApplying)return;
+   const submit=f.querySelector('[type="submit"]');
+   if(submit){submit.disabled=true;submit.textContent="DB 저장 중...";}
+   void applyBonusItem(v.id,String(v.reason||"").trim())
+    .then(ok=>{if(ok)close();})
+    .catch(err=>notify(err.message||"상벌 저장 실패"))
+    .finally(()=>{if(submit?.isConnected){submit.disabled=false;submit.textContent="확인 후 적용";}});
+   return;
   }
   if(f.id==="useForm"){useTime(v.minutes);close();}
  }catch(err){notify(err.message||"저장 실패");}
@@ -2153,8 +2170,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v50")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v50","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v51")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v51","1");
   window.location.reload();
  });
 }
