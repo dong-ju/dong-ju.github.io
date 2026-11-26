@@ -1123,7 +1123,7 @@ function renderWeeklyChecklist(d,active,anchor){
    const mark=key==="approved"?"✓":key==="pending"?"✓":key==="partial"?
     state.steps+"/"+state.total:key==="rejected"?"다시":"·";
    const accessible=key==="approved"?"완료 기록":key==="pending"?"체크됨":
-    key==="partial"?state.steps+"개 체크 / "+state.total+"개":key==="rejected"?"다시 하기":
+    key==="partial"?(m.day<seoulToday()?"미완료 · 보너스 없음 · ":"")+state.steps+"개 체크 / "+state.total+"개":key==="rejected"?"다시 하기":
     key==="out"?"기록 대상 아님":"기록 없음";
    return '<td><span class="week-cell week-'+key+'" title="'+safe(m.day+" "+h.title+" "+accessible)+'" aria-label="'+safe(m.day+" "+h.title+" "+accessible)+'">'+mark+'</span></td>';
   }).join("");
@@ -1140,6 +1140,7 @@ function renderWeeklyChecklist(d,active,anchor){
   '<div class="week-legend"><span><b class="week-cell week-approved">✓</b> 완료</span>'+
   '<span><b class="week-cell week-pending">✓</b> 체크됨</span>'+
   '<span><b class="week-cell week-partial">1/4</b> 일부 체크</span></div>'+
+  '<p class="week-partial-note">지난 날짜의 일부 체크는 미완료 기록이며 보너스가 적립되지 않습니다. 부모는 지난 날짜를 선택해 나중에 완료를 확인할 수 있습니다.</p>'+
   '<div class="group-head"><h2>일별 상벌</h2></div>'+renderDayScoreTags(d,range.start,range.end)+
   '<div class="group-head"><h2>일별 변화</h2></div>'+svgBehaviorCharts(d,range.start,range.end)+'</section>';
 }
@@ -1175,7 +1176,8 @@ function renderWeekEvents(d,start,end){
    }
   }else{
    const info=e.item;
-   title=safe(info.title);note=safe(e.day);amount='<span class="waiting">진행 중</span>';
+   title=safe(info.title);note=safe(e.day);
+   amount=e.day<seoulToday()?'<span class="waiting">미완료 · 0분</span>':'<span class="waiting">진행 중</span>';
    detail='<div class="log-details">'+(info.habit.items||[]).filter(x=>info.ids.includes(x.id)).
     map(x=>'<span>✓ '+safe(x.title)+'</span>').join("")+'</div>';
   }
@@ -1947,8 +1949,10 @@ function renderHistory(d,unit,anchor){
   }
   if(row.type==="partial"){
    const p=row.data;
-   return '<div class="log"><div><strong>'+safe(p.title)+'</strong><small>'+safe(row.date)+' · 진행 중</small>'+
-    detailsUI(p.details)+'</div><b class="waiting">진행 중</b></div>';
+   const past=row.date<seoulToday();
+   const label=past?"미완료 · 보너스 없음":"진행 중";
+   return '<div class="log"><div><strong>'+safe(p.title)+'</strong><small>'+safe(row.date)+' · '+label+'</small>'+
+    detailsUI(p.details)+'</div><b class="waiting">'+(past?"적립 0분":"진행 중")+'</b></div>';
   }
   const l=row.data,num=Number(l.minutes)||0;
   const childCheckAt=role()==="child"&&l.kind==="habit"?
@@ -2260,8 +2264,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v57")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v57","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v58")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v58","1");
   window.location.reload();
  });
 }
