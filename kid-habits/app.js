@@ -1500,7 +1500,7 @@ function bulkTaskRow(h){
   '<div class="bulk-subhead bulk-group-header"><strong>하위 묶음</strong>'+el("+ 묶음","tiny","bulk-add-group")+'</div>'+
   '<div class="bulk-groups">'+groupsUI+'</div></div>'+
   '<div class="bulk-row-options"><label class="bulk-active"><input type="checkbox" name="task-active" '+(e.active?"checked":"")+'> 사용하기</label>'+
-  el(h?"매일 할 일 삭제":"항목 삭제","tiny muted","bulk-delete-task")+'</div></div></div>';
+  '</div></div></div>';
 }
 function bulkGroupRow(group){
  const id=group?.id||uid(),title=group?.title||"";
@@ -1636,6 +1636,7 @@ function openBulkDetail(row,removeOnCancel=false){
   '<button type="button" class="bulk-detail-close" data-action="bulk-detail-cancel" aria-label="상세 편집 취소">×</button></div>'+
   '<div class="bulk-detail-scroll bulk-form"><div class="bulk-detail-content"></div></div>'+
   '<div class="bulk-detail-footer">'+
+    (isTask&&!removeOnCancel?el("삭제","ghost delete-action","bulk-delete-task"):"")+
    el("취소","ghost","bulk-detail-cancel")+
    el("목록에 반영","primary","bulk-detail-accept")+'</div>';
  bulkDetailDialog.querySelector(".bulk-detail-content").appendChild(row);
@@ -2133,7 +2134,7 @@ document.addEventListener("click",e=>{
    bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
   }
   else if(act==="bulk-delete-task"&&role()==="parent"){
-   removeBulkTask(t.closest(".bulk-task-row"));
+   removeBulkTask(t.closest(".bulk-task-row")||activeBulkDetail?.row);
   }
   else if(act==="bulk-remove"&&role()==="parent"&&t.closest(".bulk-row")?.dataset.created==="1"){
    if(activeBulkDetail?.row===t.closest(".bulk-row"))closeBulkDetail(false);
@@ -2259,8 +2260,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v56")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v56","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v57")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v57","1");
   window.location.reload();
  });
 }
