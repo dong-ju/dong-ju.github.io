@@ -2566,3 +2566,85 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
 .view-child.screen-today .habit-card .child-check-time[hidden]{
  display:none!important;
 }
+
+/* v58: readable toast layout with natural Korean line wrapping. */
+#toast{
+ width:max-content;
+ min-width:min(180px,calc(100vw - 32px));
+ max-width:min(440px,calc(100vw - 32px));
+ bottom:calc(20px + env(safe-area-inset-bottom, 0px));
+ padding:12px 17px;
+ font-size:13px;
+ line-height:1.55;
+ text-align:center;
+ white-space:normal;
+ word-break:keep-all;
+ overflow-wrap:anywhere;
+ text-wrap:pretty;
+ z-index:10000;
+}
+
+/* v58: fixed, readable button proportions in the daily-task detail dialog. */
+#bulkDetailModal .bulk-detail-footer{
+ display:grid;
+ grid-template-columns:minmax(64px,.75fr) minmax(76px,.9fr) minmax(118px,1.55fr);
+ align-items:stretch;
+ gap:8px;
+}
+#bulkDetailModal .bulk-detail-footer:not(:has(.delete-action)){
+ grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);
+}
+#bulkDetailModal .bulk-detail-footer button{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ flex:none;
+ width:100%;
+ max-width:100%;
+ min-width:0;
+ min-height:44px;
+ padding:9px 8px;
+ font-size:13px;
+ font-weight:690;
+ line-height:1.4;
+ text-align:center;
+ white-space:nowrap;
+ word-break:keep-all;
+}
+#bulkDetailModal .bulk-detail-footer .delete-action{
+ color:#a04842;
+ background:#fff;
+ border-color:#efd8d5;
+}
+@media(max-width:340px){
+ #bulkDetailModal .bulk-detail-footer:has(.delete-action){
+  grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);
+ }
+ #bulkDetailModal .bulk-detail-footer .delete-action{
+  grid-column:1/-1;
+  min-height:38px;
+ }
+}
+@media(max-width:410px){
+ .view-parent .one-time-item .task-top{align-items:flex-start;gap:10px}
+ .view-parent .one-time-item .one-time-actions{
+  flex:1 1 100%;
+  justify-content:flex-start;
+  gap:7px;
+  min-width:0;
+ }
+ .view-parent .one-time-item .one-time-actions button{
+  flex:0 0 auto;
+  min-height:39px;
+  padding:8px 11px;
+  white-space:nowrap;
+ }
+}
+.week-partial-note{
+ margin:8px 0 15px;
+ font-size:12px;
+ line-height:1.55;
+ color:#728076;
+ word-break:keep-all;
+ overflow-wrap:break-word;
+}
