@@ -926,8 +926,13 @@ function refreshChildCheckSync(before,after,previousRole){
  return refreshChildCheckView(after);
 }
 function archivedHabitsOn(d,day){
- return d.habits.filter(h=>h.moved_to_parent_bonus&&h.was_active_before_move&&
-  (day<h.moved_to_parent_on||(day===h.moved_to_parent_on&&check(d,h.id,day)?.status==="approved")));
+ return d.habits.filter(h=>
+  (h.moved_to_parent_bonus&&h.was_active_before_move&&
+   (day<h.moved_to_parent_on||(day===h.moved_to_parent_on&&check(d,h.id,day)?.status==="approved")))||
+  // Retain historical daily completion statistics when an item is deleted.
+  (h.deleted_at&&h.was_active_before_delete&&
+   (day<h.deleted_on||(day===h.deleted_on&&check(d,h.id,day)?.status==="approved")))
+ );
 }
 function dailyCompletion(d,active,day){
  const current=seoulToday();
@@ -1495,7 +1500,7 @@ function bulkTaskRow(h){
   '<div class="bulk-subhead bulk-group-header"><strong>하위 묶음</strong>'+el("+ 묶음","tiny","bulk-add-group")+'</div>'+
   '<div class="bulk-groups">'+groupsUI+'</div></div>'+
   '<div class="bulk-row-options"><label class="bulk-active"><input type="checkbox" name="task-active" '+(e.active?"checked":"")+'> 사용하기</label>'+
-  (!h?el("항목 삭제","tiny muted","bulk-remove"):"")+'</div></div></div>';
+  el(h?"매일 할 일 삭제":"항목 삭제","tiny muted","bulk-delete-task")+'</div></div></div>';
 }
 function bulkGroupRow(group){
  const id=group?.id||uid(),title=group?.title||"";
@@ -1654,6 +1659,27 @@ function closeBulkDetail(accept=false){
  if(accept)bulkDirty(document.getElementById("bulkForm"));
  if(bulkDetailDialog.open)bulkDetailDialog.close();
 }
+function removeBulkTask(row){
+ requireParent();
+ const form=document.getElementById("bulkForm");
+ if(!form||!row?.classList.contains("bulk-task-row"))return;
+ const id=String(row.querySelector('[name="task-id"]')?.value||"").trim();
+ const title=String(row.querySelector('[name="task-title"]')?.value||"").trim()||"매일 할 일";
+ if(id&&!confirm('"'+title+'" 항목을 삭제할까요?\\n기존 완료 기록과 적립 시간은 보존됩니다.\\n삭제하려면 마지막에 변경사항 저장을 눌러주세요.'))return;
+ if(id){
+  const selected=new Set(JSON.parse(form.dataset.deletedTaskIds||"[]"));
+  selected.add(id);
+  form.dataset.deletedTaskIds=JSON.stringify(Array.from(selected));
+ }
+ if(activeBulkDetail?.row===row){
+  closeSubgroupPicker();
+  activeBulkDetail.slot.remove();
+  row.remove();
+  activeBulkDetail=null;
+  if(bulkDetailDialog.open)bulkDetailDialog.close();
+ }else row.remove();
+ bulkDirty(form);
+}
 bulkDetailDialog.addEventListener("cancel",event=>{
  event.preventDefault();
  if(activeSubgroupPicker){closeSubgroupPicker(true);return;}
@@ -1666,9 +1692,9 @@ bulkDetailDialog.addEventListener("close",()=>{if(activeBulkDetail)closeBulkDeta
 function bulkEditor(initialTab="tasks"){
  requireParent();
  closeSubgroupPicker();
- const d=read(),habits=d.habits.filter(h=>!h.moved_to_parent_bonus).sort((a,b)=>a.sort_order-b.sort_order);
+ const d=read(),habits=d.habits.filter(h=>!h.moved_to_parent_bonus&&!h.deleted_at).sort((a,b)=>a.sort_order-b.sort_order);
  const choices={habits:"매일 할 일",oneTime:"할 일",bonuses:"상벌 보너스"};
- open('<form id="bulkForm" class="form bulk-form" data-dirty="0">'+
+ open('<form id="bulkForm" class="form bulk-form" data-dirty="0" data-deleted-task-ids="[]">'+
   '<div class="bulk-editor-head"><h2>항목 편집</h2>'+el("닫기","tiny","close")+'</div>'+
   '<div class="bulk-tabs" role="tablist" aria-label="편집할 항목">'+
   '<button type="button" role="tab" aria-selected="true" class="bulk-tab active" data-action="bulk-tab" data-panel="tasks">매일 할 일 <small>'+habits.length+'</small></button>'+
@@ -1730,7 +1756,7 @@ function bulkUpdatePreview(row){
  const enabled=find(task?"task-active":"bonus-active")?.checked;
  if(inactive)inactive.textContent=enabled?"":"사용 안 함";
 }
-function saveBulkEditor(form){
+async function saveBulkEditor(form){
  requireParent();
  bulkSyncRows(form);
  const d=read();
@@ -1740,14 +1766,19 @@ function saveBulkEditor(form){
  const field=(row,name)=>row.querySelector('[name="'+name+'"]');
  const get=(row,name)=>String(field(row,name)?.value||"").trim();
  const bool=(row,name)=>!!field(row,name)?.checked;
- const oldTasks=d.habits.filter(h=>!h.moved_to_parent_bonus);
+ const oldTasks=d.habits.filter(h=>!h.moved_to_parent_bonus&&!h.deleted_at);
  const oldBonuses=d.bonusItems;
- // No existing row can be silently discarded. Hide one by clearing its '사용' checkbox.
  const incomingTasks=taskRows.map(row=>get(row,"task-id")).filter(Boolean);
  const incomingBonuses=bonusRows.map(row=>get(row,"bonus-id")).filter(Boolean);
+ const stagedIds=JSON.parse(form.dataset.deletedTaskIds||"[]");
+ if(!Array.isArray(stagedIds)||stagedIds.some(id=>typeof id!=="string"))throw Error("삭제 목록을 확인해주세요.");
+ const deletedIds=new Set(stagedIds);
  if(new Set(incomingTasks).size!==incomingTasks.length||new Set(incomingBonuses).size!==incomingBonuses.length||
-  oldTasks.some(h=>!incomingTasks.includes(h.id))||oldBonuses.some(b=>!incomingBonuses.includes(b.id)))
-  throw Error("기존 항목은 삭제할 수 없습니다. 사용을 해제해주세요.");
+  oldTasks.some(h=>!incomingTasks.includes(h.id)&&!deletedIds.has(h.id))||
+  oldTasks.some(h=>incomingTasks.includes(h.id)&&deletedIds.has(h.id))||
+  Array.from(deletedIds).some(id=>!oldTasks.some(h=>h.id===id))||
+  oldBonuses.some(b=>!incomingBonuses.includes(b.id)))
+  throw Error("변경한 항목과 삭제 목록을 확인해주세요.");
  const updatedTasks=taskRows.map((row,index)=>{
   const id=get(row,"task-id"),prev=id?oldTasks.find(h=>h.id===id):null,
    title=get(row,"task-title"),minutes=Number(get(row,"task-minutes"));
@@ -1793,9 +1824,22 @@ function saveBulkEditor(form){
     screenOrder.some(id=>!["habits","oneTime","bonuses"].includes(id)))
   throw Error("화면 구역 정렬을 확인해주세요.");
  d.displaySections=screenOrder;
- d.habits=[...updatedTasks,...d.habits.filter(x=>x.moved_to_parent_bonus)];
+ const removedAt=new Date().toISOString(),removedOn=seoulToday();
+ const newlyDeleted=oldTasks.filter(h=>deletedIds.has(h.id)).map(h=>({
+  ...h,active:false,deleted_at:removedAt,deleted_on:removedOn,was_active_before_delete:h.active!==false
+ }));
+ const pendingIds=new Set(newlyDeleted.map(h=>h.id));
+ // Stop stale approval requests without changing previous awards.
+ d.checks.filter(c=>pendingIds.has(c.habit_id)&&c.status==="pending").forEach(c=>{
+  c.status="rejected";c.awarded_minutes=0;c.reviewed_at=removedAt;c.reviewed_by="personal-parent-delete";
+ });
+ d.habits=[...updatedTasks,...newlyDeleted,...d.habits.filter(x=>x.moved_to_parent_bonus||x.deleted_at)];
  d.bonusItems=updatedBonuses;
- save(d);render();
+ const persisted=await save(d);
+ if(!persisted)return false;
+ render();
+ notify(newlyDeleted.length?newlyDeleted.length+"개 매일 할 일을 삭제하고 저장했습니다.":"변경사항을 저장했습니다.");
+ return true;
 }
 
 function editor(hid){
@@ -2088,6 +2132,9 @@ document.addEventListener("click",e=>{
    t.closest(".bulk-subitem")?.remove();
    bulkUpdatePreview(row);bulkDirty(document.getElementById("bulkForm"));
   }
+  else if(act==="bulk-delete-task"&&role()==="parent"){
+   removeBulkTask(t.closest(".bulk-task-row"));
+  }
   else if(act==="bulk-remove"&&role()==="parent"&&t.closest(".bulk-row")?.dataset.created==="1"){
    if(activeBulkDetail?.row===t.closest(".bulk-row"))closeBulkDetail(false);
    else{t.closest(".bulk-row").remove();bulkDirty(document.getElementById("bulkForm"));}
@@ -2150,7 +2197,17 @@ document.addEventListener("submit",e=>{
   }
   if(f.id==="bulkForm"){
    if(activeBulkDetail)throw Error("상세 편집을 먼저 완료해주세요.");
-   saveBulkEditor(f);f.dataset.dirty="0";close();
+   if(f.dataset.saving==="1")return;
+   f.dataset.saving="1";
+   const submit=f.querySelector('[type="submit"]');
+   if(submit){submit.disabled=true;submit.textContent="DB 저장 중...";}
+   void saveBulkEditor(f).then(ok=>{
+    if(ok){f.dataset.dirty="0";close();}
+   }).catch(err=>notify(err.message||"변경사항 저장 실패")).finally(()=>{
+    f.dataset.saving="0";
+    if(submit?.isConnected){submit.disabled=false;submit.textContent="변경사항 저장";}
+   });
+   return;
   }
   if(f.id==="useForm"){useTime(v.minutes);close();}
  }catch(err){notify(err.message||"저장 실패");}
@@ -2202,8 +2259,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v55")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v55","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v56")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v56","1");
   window.location.reload();
  });
 }
