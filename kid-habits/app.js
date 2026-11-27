@@ -2007,11 +2007,14 @@ function bonusEditor(id){
   '<div class="form-actions">'+el("취소","ghost","close")+'<button type="submit" class="primary">저장</button></div></form>');
 }
 function bonusApply(id){
- const item=read().bonusItems.find(x=>x.id===id&&x.active!==false);
+ const d=read(),item=d.bonusItems.find(x=>x.id===id&&x.active!==false);
  if(!item)throw Error("등록된 항목을 찾지 못했습니다.");
+ const remain=totals(d);
+ const actualDeduction=item.minutes<0?Math.min(remain,-item.minutes):0;
  // Avoid native GET form submissions even if submit delegation is interrupted.
  open('<div id="bonusApplyPanel" class="form"><h2 tabindex="-1" autofocus style="outline:none">'+safe(item.title)+'</h2>'+
   '<div class="apply-value '+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</div>'+
+  (item.minutes<0?'<p class="bonus-apply-limit" style="font-size:13px;line-height:1.5;color:#65766b;text-align:center;margin:0">실제 차감 '+actualDeduction+'분 · 적용 후 남은 시간 '+time(remain-actualDeduction)+'</p>':"")+
   '<label>사유 (선택)<input id="bonusApplyReason" maxlength="100" autocomplete="off" placeholder="필요할 때만 작성"></label>'+
   '<div class="form-actions">'+el("취소","ghost","close")+
   '<button type="button" class="primary" data-action="bonus-confirm" data-id="'+safe(item.id)+'">확인 후 적용</button></div></div>');
