@@ -2648,3 +2648,62 @@ button,.subitem.selectable,.task-click{touch-action:manipulation}
  word-break:keep-all;
  overflow-wrap:break-word;
 }
+
+/* v60: behavior-focused child timeline, no remaining-time panel. */
+.view-child .child-recent .week-events{
+ border:0;
+ border-radius:0;
+ padding:0;
+ background:transparent;
+}
+.view-child .child-recent .week-event{
+ gap:10px;
+ padding:11px 0;
+ align-items:flex-start;
+}
+.view-child .child-recent .week-event>div>strong{
+ font-size:13px;
+ line-height:1.5;
+}
+.view-child .child-recent .week-event small{
+ font-size:11px;
+ line-height:1.4;
+}
+.view-child .week-event{
+ min-width:0;
+ flex-wrap:wrap;
+}
+.view-child .week-event>div{
+ flex:1 1 160px;
+ min-width:0;
+}
+.view-child .child-action-status{
+ display:inline-flex;
+ align-items:center;
+ flex:0 1 auto;
+ min-height:28px;
+ padding:5px 9px;
+ border:1px solid #e2eae3;
+ background:#f4f7f4;
+ border-radius:8px;
+ color:#56745e;
+ font-size:12px;
+ font-weight:700;
+ line-height:1.4;
+ text-align:center;
+ white-space:normal;
+ word-break:keep-all;
+}
+.view-child .child-recent .child-action-status{
+ font-size:11px;
+ padding:4px 7px;
+}
+.view-child .child-monthly .score-weekly-trend .trend-entry{
+ min-width:0;
+ gap:8px;
+}
+.view-child .child-monthly .score-weekly-trend .trend-rate,
+.view-child .child-monthly .score-weekly-trend .trend-change{
+ white-space:normal;
+ word-break:keep-all;
+}
