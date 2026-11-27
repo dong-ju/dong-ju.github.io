@@ -1275,7 +1275,7 @@ function childProgressNumbers(d,active,day){
 }
 function renderChildProgress(d,active,day){
  const {done,total,confirmed,waiting,percent}=childProgressNumbers(d,active,day);
- const week=period("week",day),stats=periodCompletion(d,read().habits.filter(h=>h.active),week.start,week.end);
+ const week=period("week",day),stats=periodCompletion(d,active,week.start,week.end);
  return '<section class="child-progress" aria-label="오늘 진행 상황">'+
   '<div class="child-section-title">'+(isParentPreview()&&day<seoulToday()?"선택한 날짜 진행":"오늘 진행")+'</div>'+
   '<div class="child-progress-top"><strong>'+done+' <span>/ '+total+'</span></strong><span>'+percent+'%</span></div>'+
@@ -1908,7 +1908,7 @@ function logDetails(d,l){
    return '<span>✓ '+safe(obj.title||"")+(obj.at?' <em>'+safe(formatMoment(obj.at))+'</em>':"")+'</span>';
   }).join("")+'</div>';
  }
- if(l.kind==="penalty"&&l.reason)html+='<div class="reason">'+safe(l.reason)+'</div>';
+ if(["bonus","penalty"].includes(l.kind)&&l.reason)html+='<div class="reason">'+safe(l.reason)+'</div>';
  return html;
 }
 function renderHistory(d,unit,anchor){
