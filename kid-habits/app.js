@@ -405,7 +405,12 @@ function returnToParent(){
 }
 function dateLabel(day){return Number(day.slice(5,7))+"월 "+Number(day.slice(8,10))+"일";}
 function time(n){n=Number(n)||0;return (n<0?"−":"")+(Math.abs(n)<60?Math.abs(n)+"분":Math.floor(Math.abs(n)/60)+"시간"+(Math.abs(n)%60?" "+Math.abs(n)%60+"분":""));}
-function totals(d){return d.ledger.reduce((s,l)=>s+(Number(l.minutes)||0),0);}
+function totals(d){
+ // Ledger is newest first. Floor EACH transaction so a penalty never creates
+ // a debt that consumes rewards earned later.
+ return d.ledger.slice().reverse().reduce((balance,l)=>
+  Math.max(0,balance+(Number(l.minutes)||0)),0);
+}
 function check(d,hid,day){return d.checks.find(c=>c.habit_id===hid&&c.day===day);}
 function checkKey(hid,day){return day+"|"+hid;}
 function checked(d,hid,day){return d.subchecks[checkKey(hid,day)]||[];}
@@ -618,11 +623,17 @@ async function applyBonusItem(itemId,reason){
  if(desc.length>100)throw Error("사유는 100자 이하로 입력해주세요.");
  bonusApplying=true;
  try{
-  log(d,item.minutes>0?"bonus":"penalty",item.minutes,item.title,seoulToday(),null,{bonus_item_id:item.id,reason:desc});
+  const balanceBefore=totals(d);
+  const applied=item.minutes<0?-Math.min(balanceBefore,-item.minutes):item.minutes;
+  // Store actual deducted minutes, plus the original requested amount for history.
+  log(d,item.minutes>0?"bonus":"penalty",applied,item.title,seoulToday(),null,
+   {bonus_item_id:item.id,reason:desc,requested_minutes:item.minutes});
   const persisted=await save(d);
   if(!persisted)return false;
   render();
-  notify(item.title+" "+(item.minutes>0?"+":"")+item.minutes+"분 적용 · 남은 시간 "+time(totals(d)));
+  const actionText=applied<0?(-applied)+"분 차감":applied>0?"+"+applied+"분 적립":"0분 차감";
+  notify(item.title+" · "+actionText+" · 남은 시간 "+time(totals(d))+
+   (item.minutes<0&&applied!==item.minutes?" (최소 0분 적용)":""));
   return true;
  }finally{bonusApplying=false;}
 }
@@ -2264,8 +2275,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v58")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v58","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v59")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v59","1");
   window.location.reload();
  });
 }
