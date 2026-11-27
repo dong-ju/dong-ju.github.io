@@ -632,8 +632,8 @@ async function applyBonusItem(itemId,reason){
   if(!persisted)return false;
   render();
   const actionText=applied<0?(-applied)+"분 차감":applied>0?"+"+applied+"분 적립":"0분 차감";
-  notify(item.title+" · "+actionText+" · 남은 시간 "+time(totals(d))+
-   (item.minutes<0&&applied!==item.minutes?" (최소 0분 적용)":""));
+  notify(item.title+" · "+actionText+
+   (item.minutes<0&&applied!==item.minutes?" (사용 가능한 범위에서 차감)":""));
   return true;
  }finally{bonusApplying=false;}
 }
@@ -652,7 +652,7 @@ function saveBonusItem(data){
 function useTime(minutes){
  requireParent();const n=Number(minutes),d=read();
  if(!Number.isInteger(n)||n<1||n>300)throw Error("사용 시간을 확인해주세요.");
- if(n>Math.max(0,totals(d)))throw Error("남은 시간보다 많습니다.");
+ if(n>Math.max(0,totals(d)))throw Error("사용 가능한 시간보다 많습니다.");
  log(d,"spend",-n,"보너스 시간 사용",seoulToday(),null,{reason:""});
  save(d);render();
 }
@@ -848,7 +848,7 @@ function renderTask(d,h,day,r){
  else if(isParent&&complete&&sameActionDay(c?.reviewed_at))actionsBottom='<div class="task-foot">'+el("완료 취소","ghost","review",'data-id="'+safe(h.id)+'" data-status="rejected"')+'</div>';
  return '<article data-habit-id="'+safe(h.id)+'" class="task habit-card '+(items.length?"task-has-subitems ":"")+(complete?"task-done":pending?"task-checked":c?.status==="rejected"?"task-retry":"")+'"><div class="task-top">'+titleRow+
   '<div class="right">'+(state?'<span class="state '+(complete?"done":"")+'">'+state+'</span>':'')+
-  '<span class="reward">+'+h.reward_minutes+'분</span>'+actions.join("")+'</div></div>'+
+  (isParent?'<span class="reward">+'+h.reward_minutes+'분</span>':"")+actions.join("")+'</div></div>'+
   detail+actionsBottom+'</article>';
 }
 /* Keep child checkboxes and parent task cards mounted during a check. */
@@ -1134,7 +1134,7 @@ function renderWeeklyChecklist(d,active,anchor){
    const mark=key==="approved"?"✓":key==="pending"?"✓":key==="partial"?
     state.steps+"/"+state.total:key==="rejected"?"다시":"·";
    const accessible=key==="approved"?"완료 기록":key==="pending"?"체크됨":
-    key==="partial"?(m.day<seoulToday()?"미완료 · 보너스 없음 · ":"")+state.steps+"개 체크 / "+state.total+"개":key==="rejected"?"다시 하기":
+    key==="partial"?(m.day<seoulToday()?"미완료 · ":"")+state.steps+"개 체크 / "+state.total+"개":key==="rejected"?"다시 하기":
     key==="out"?"기록 대상 아님":"기록 없음";
    return '<td><span class="week-cell week-'+key+'" title="'+safe(m.day+" "+h.title+" "+accessible)+'" aria-label="'+safe(m.day+" "+h.title+" "+accessible)+'">'+mark+'</span></td>';
   }).join("");
@@ -1142,7 +1142,10 @@ function renderWeeklyChecklist(d,active,anchor){
  }).join("");
  const checked=byDay.map(m=>'<td><span class="week-day-rate">'+
   (m.totalTasks?(m.approvedTasks+m.waitingTasks)+"건":"—")+'</span></td>').join("");
- const summary=renderBehaviorSummary(d,range.start,range.end);
+ const summary='<div class="completion-summary">'+
+  '<div><small>완료한 할 일</small><strong>'+overall.confirmed+'건</strong></div>'+
+  '<div><small>확인 대기</small><strong>'+overall.waiting+'건</strong></div>'+
+  '<div><small>체크한 단계</small><strong>'+overall.checkedSteps+'개</strong></div></div>';
  return '<section class="child-weekly"><div class="period-nav">'+
   el("‹","date-button","statprev")+'<strong>'+dateLabel(range.start)+' ~ '+dateLabel(range.end)+'</strong>'+
   el("›","date-button","statnext",range.end>=seoulToday()?"disabled":"")+'</div>'+summary+
@@ -1151,48 +1154,51 @@ function renderWeeklyChecklist(d,active,anchor){
   '<div class="week-legend"><span><b class="week-cell week-approved">✓</b> 완료</span>'+
   '<span><b class="week-cell week-pending">✓</b> 체크됨</span>'+
   '<span><b class="week-cell week-partial">1/4</b> 일부 체크</span></div>'+
-  '<p class="week-partial-note">지난 날짜의 일부 체크는 미완료 기록이며 보너스가 적립되지 않습니다. 부모는 지난 날짜를 선택해 나중에 완료를 확인할 수 있습니다.</p>'+
-  '<div class="group-head"><h2>일별 상벌</h2></div>'+renderDayScoreTags(d,range.start,range.end)+
-  '<div class="group-head"><h2>일별 변화</h2></div>'+svgBehaviorCharts(d,range.start,range.end)+'</section>';
+  '<p class="week-partial-note">지난 날짜의 일부 체크는 미완료 기록으로 남습니다. 부모가 나중에 완료 여부를 확인할 수 있습니다.</p>'+
+  '<div class="group-head"><h2>행동 이력</h2></div>'+renderWeekEvents(d,range.start,range.end)+'</section>';
 }
-function renderWeekEvents(d,start,end){
+function renderWeekEvents(d,start,end,limit=Infinity){
  const events=[];
- d.ledger.filter(l=>l.kind!=="spend"&&l.day>=start&&l.day<=end).forEach(l=>events.push({type:"ledger",day:l.day,
-  at:l.created_at||l.day+"T00:00:00Z",item:l}));
- d.checks.filter(c=>c.day>=start&&c.day<=end&&c.status==="pending").forEach(c=>events.push({type:"pending",day:c.day,
-  at:c.submitted_at||c.day+"T00:00:00Z",item:c}));
+ d.ledger.filter(l=>l.kind!=="spend"&&l.day>=start&&l.day<=end)
+  .forEach(l=>events.push({type:"ledger",day:l.day,at:l.created_at||l.day+"T00:00:00Z",item:l}));
+ d.checks.filter(c=>c.day>=start&&c.day<=end&&c.status==="pending")
+  .forEach(c=>events.push({type:"pending",day:c.day,at:c.submitted_at||c.day+"T00:00:00Z",item:c}));
  Object.entries(d.subchecks||{}).forEach(([key,ids])=>{
   const bar=key.indexOf("|");if(bar<0||!Array.isArray(ids)||!ids.length)return;
   const day=key.slice(0,bar),hid=key.slice(bar+1);
   if(day<start||day>end||check(d,hid,day))return;
   const h=d.habits.find(x=>x.id===hid);if(!h)return;
-  events.push({type:"partial",day,at:day+"T00:00:00Z",item:{title:h.title,ids,habit:h}});
+  const details=(h.items||[]).filter(x=>ids.includes(x.id)).map(x=>({
+   title:x.title,at:d.subcheckTimes?.[key]?.[x.id]||null
+  }));
+  if(!details.length)return;
+  const at=details.map(x=>x.at).filter(Boolean).sort().pop()||day+"T00:00:00Z";
+  events.push({type:"partial",day,at,item:{title:h.title,details}});
  });
  events.sort((a,b)=>b.at.localeCompare(a.at));
- const rows=events.map(e=>{
-  let title="",note="",amount="",detail="";
+ const rows=events.slice(0,limit).map(e=>{
+  let title="",note="",state="",detail="";
+  const moment=formatMoment(e.at);
   if(e.type==="ledger"){
-   const l=e.item,n=Number(l.minutes)||0;
-   title=safe(l.description||"보너스");
-   amount='<strong class="'+(n>=0?"positive":"negative")+'">'+(n>0?"+":"")+n+'분</strong>';
-   note=safe(l.day)+" · "+safe(formatMoment(l.created_at));
+   const l=e.item;
+   title=safe(l.description||"행동 기록");
+   state=l.kind==="habit"?"완료 확인":
+    l.kind==="bonus"?"칭찬 기록":l.kind==="penalty"?"지도 기록":"기록";
    detail=logDetails(d,l);
   }else if(e.type==="pending"){
    const c=e.item,h=d.habits.find(x=>x.id===c.habit_id);
-   title=safe(h?.title||"할 일");note=safe(c.day)+" · "+safe(formatMoment(c.submitted_at));
-   amount='<span class="waiting">✓</span>';
-   if(Array.isArray(c.completed_items)&&c.completed_items.length){
-    detail='<div class="log-details">'+c.completed_items.map(x=>
-     '<span>✓ '+safe(typeof x==="string"?x:x.title)+'</span>').join("")+'</div>';
-   }
+   title=safe(h?.title||"할 일");state="부모 확인 대기";
+   const details=Array.isArray(c.completed_items)?c.completed_items:[];
+   detail=details.length?'<div class="log-details">'+details.map(x=>
+    '<span>✓ '+safe(typeof x==="string"?x:x.title)+'</span>').join("")+'</div>':"";
   }else{
-   const info=e.item;
-   title=safe(info.title);note=safe(e.day);
-   amount=e.day<seoulToday()?'<span class="waiting">미완료 · 0분</span>':'<span class="waiting">진행 중</span>';
-   detail='<div class="log-details">'+(info.habit.items||[]).filter(x=>info.ids.includes(x.id)).
-    map(x=>'<span>✓ '+safe(x.title)+'</span>').join("")+'</div>';
+   title=safe(e.item.title);state=e.day<seoulToday()?"일부 체크 · 미완료":"일부 체크";
+   detail='<div class="log-details">'+e.item.details.map(x=>
+    '<span>✓ '+safe(x.title)+'</span>').join("")+'</div>';
   }
-  return '<div class="week-event"><div><strong>'+title+'</strong><small>'+note+'</small>'+detail+'</div>'+amount+'</div>';
+  note=safe(e.day)+(moment?" · "+safe(moment):"");
+  return '<div class="week-event"><div><strong>'+title+'</strong><small>'+note+'</small>'+detail+
+   '</div><span class="child-action-status">'+state+'</span></div>';
  }).join("");
  return '<div class="week-events">'+(rows||'<p class="empty">기록 없음</p>')+'</div>';
 }
@@ -1223,33 +1229,29 @@ function weeklyTrendSvg(weeks){
   guides+poly+dots+labels+'</svg>';
 }
 function renderMonthlyCompletion(d,active,anchor){
- const range=period("month",anchor),score=scoreTotals(d,range.start,range.end),
+ const range=period("month",anchor),overall=periodCompletion(d,active,range.start,range.end),
   {weeks}=monthlyWeeks(d,active,anchor);
- let previous=null;
- const rows=weeks.map((week,i)=>{
-  const tally=scoreTotals(d,week.start,week.end),delta=previous===null?null:tally.net-previous,
-   rate=previous===null||previous===0?null:Math.round(delta/Math.abs(previous)*100),
-   change=delta===null?"—":(delta>0?"+":"")+delta+"분"+(rate===null?"":" ("+(rate>0?"+":"")+rate+"%)");
-  previous=tally.net;
-  return '<div class="trend-entry"><span class="trend-label">'+(i+1)+'주 <small>'+week.label+'</small></span>'+
-   '<span class="trend-rate '+(tally.net>0?"positive":tally.net<0?"negative":"")+'">'+signedMinutes(tally.net)+'</span>'+
-   '<span class="trend-change '+(delta>0?"positive":delta<0?"negative":"")+'">'+change+'</span></div>';
- }).join("");
+ const rows=weeks.map((week,i)=>
+  '<div class="trend-entry"><span class="trend-label">'+(i+1)+'주 <small>'+week.label+'</small></span>'+
+  '<span class="trend-rate">완료 '+week.metrics.confirmed+'건</span>'+
+  '<span class="trend-change">체크 '+week.metrics.checkedSteps+'개</span></div>'
+ ).join("");
  return '<section class="child-monthly"><div class="period-nav">'+
   el("‹","date-button","statprev")+'<strong>'+range.title+'</strong>'+
   el("›","date-button","statnext",range.end>=seoulToday()?"disabled":"")+'</div>'+
-  '<div class="behavior-summary"><div><small>상점</small><strong class="positive">+'+score.earned+'분</strong></div>'+
-  '<div><small>벌점</small><strong class="negative">−'+score.penalty+'분</strong></div>'+
-  '<div><small>순획득</small><strong class="'+(score.net>=0?"positive":"negative")+'">'+signedMinutes(score.net)+'</strong></div></div>'+
-  monthlyScoreCalendar(d,range)+svgBehaviorCharts(d,range.start,range.end)+
-  '<section class="score-weekly-trend"><h3>주별 행동점수 변화</h3>'+
-  '<div class="trend-rows">'+rows+'</div></section></section>';
+  '<div class="completion-summary">'+
+  '<div><small>완료한 할 일</small><strong>'+overall.confirmed+'건</strong></div>'+
+  '<div><small>확인 대기</small><strong>'+overall.waiting+'건</strong></div>'+
+  '<div><small>체크한 단계</small><strong>'+overall.checkedSteps+'개</strong></div></div>'+
+  '<section class="score-weekly-trend"><h3>주별 행동 기록</h3>'+
+  weeklyTrendSvg(weeks)+'<div class="trend-rows">'+rows+'</div></section>'+
+  '<div class="group-head"><h2>이번 달 행동 이력</h2></div>'+
+  renderWeekEvents(d,range.start,range.end)+'</section>';
 }
 function renderChildBonusItems(d){
  const items=d.bonusItems.filter(x=>x.active!==false);
  const chips=items.map(item=>
-  '<span class="child-bonus-chip"><span>'+safe(item.title)+'</span>'+
-  '<b class="'+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</b></span>'
+  '<span class="child-bonus-chip"><span>'+safe(item.title)+'</span></span>'
  ).join("");
  return '<section class="child-bonus-group habit-group" aria-label="상벌 보너스">'+
   '<div class="child-bonus-line habit-card"><strong>상벌 보너스</strong>'+
@@ -1273,16 +1275,7 @@ function childProgressNumbers(d,active,day){
 }
 function renderChildProgress(d,active,day){
  const {done,total,confirmed,waiting,percent}=childProgressNumbers(d,active,day);
- const weekly=scoreTotals(d,period("week",day).start,period("week",day).end);
- const recent=d.ledger.filter(l=>l.kind!=="spend").slice(0,4).map(l=>{
-  const num=Number(l.minutes)||0,
-    moment=formatMoment(l.kind==="habit"?
-      d.checks.find(c=>c.id===l.check_id)?.submitted_at||l.created_at:l.created_at),
-    detail=l.kind==="penalty"&&l.reason?'<small class="child-event-reason">'+safe(l.reason)+'</small>':"";
-  return '<div class="child-event"><div class="child-event-text"><span>'+safe(l.description||"보너스")+'</span>'+
-   '<small>'+safe(l.day)+(moment?' · '+safe(moment):"")+'</small>'+detail+'</div>'+
-   '<strong class="'+(num>=0?"positive":"negative")+'">'+(num>0?"+":"")+num+'분</strong></div>';
- }).join("");
+ const week=period("week",day),stats=periodCompletion(d,read().habits.filter(h=>h.active),week.start,week.end);
  return '<section class="child-progress" aria-label="오늘 진행 상황">'+
   '<div class="child-section-title">'+(isParentPreview()&&day<seoulToday()?"선택한 날짜 진행":"오늘 진행")+'</div>'+
   '<div class="child-progress-top"><strong>'+done+' <span>/ '+total+'</span></strong><span>'+percent+'%</span></div>'+
@@ -1291,10 +1284,10 @@ function renderChildProgress(d,active,day){
   '<div class="child-progress-states"><span><b class="positive">'+confirmed+'</b> 완료</span><span><b class="waiting">'+waiting+'</b> 체크됨</span></div>'+
   '</section>'+
   '<section class="child-week"><div class="child-section-title">이번 주</div>'+
-  '<div class="child-week-pair"><div><small>상점</small><strong class="positive">+'+time(weekly.earned)+'</strong></div>'+
-  '<div><small>벌점</small><strong class="negative">−'+time(weekly.penalty)+'</strong></div></div></section>'+
-  '<section class="child-recent"><div class="child-section-title">최근 기록</div>'+
-  (recent||'<p class="child-empty">기록 없음</p>')+
+  '<div class="child-week-pair"><div><small>완료한 할 일</small><strong>'+stats.confirmed+'건</strong></div>'+
+  '<div><small>체크한 단계</small><strong>'+stats.checkedSteps+'개</strong></div></div></section>'+
+  '<section class="child-recent"><div class="child-section-title">최근 행동 이력</div>'+
+  renderWeekEvents(d,d.started_on||"2000-01-01",seoulToday(),4)+
   el("전체 기록 보기","child-history-button","history")+'</section>';
 }
 function header(r){
@@ -1415,11 +1408,7 @@ function render(){
  if(r==="parent"&&day>seoulToday())viewDay=seoulToday();
  const active=d.habits.filter(h=>h.active).sort((a,b)=>a.sort_order-b.sort_order);
  const pending=d.checks.filter(c=>c.status==="pending").length;
- const balance='<section class="balance balance-compact" aria-label="남은 보너스 시간">'+
-  '<div class="balance-amount"><span class="balance-caption">남은 보너스 시간</span>'+
-  '<strong class="balance-number">'+time(totals(d))+'</strong></div>'+
-  (r==="parent"?'<div class="balance-actions">'+el("시간 사용","ghost","use")+'</div>':'')+
-  '</section>';
+ // Balances remain internal; no remaining-time panel on either parent or child screens.
  const nav=r==="child"?
   '<nav class="child-view-tabs" aria-label="조회 기간">'+
    el(isParentPreview()?"일별":"오늘","view-tab "+(screen==="today"?"selected":""),"child-tab",'data-tab="today" aria-pressed="'+(screen==="today")+'"')+
@@ -1443,7 +1432,8 @@ function render(){
  const taskGroup='<section class="group habit-group"><div class="group-head habit-group-head"><h2>매일 할 일</h2>'+
   (isParentPreview()&&day<seoulToday()?'<small class="past-check-hint">부모가 지난 날짜 기록 중</small>':"")+'</div>'+
   '<div class="tasks habit-item-list">'+active.map(h=>renderTask(d,h,day,r)).join("")+'</div></section>';
- const bonusGroup=r==="parent"?'<section class="group habit-group"><div class="group-head habit-group-head"><h2>추가 상벌 보너스</h2></div>'+
+ const bonusGroup=r==="parent"?'<section class="group habit-group"><div class="group-head habit-group-head"><h2>추가 상벌 보너스</h2>'+
+  el("시간 사용","tiny","use")+'</div>'+
   '<div class="bonus-list habit-item-list">'+d.bonusItems.map(item=>{
    const amount=(item.minutes>0?"+":"")+item.minutes+"분";
    return '<article class="bonus-entry habit-card '+(item.active===false?"inactive":"")+'"><span class="bonus-description">'+safe(item.title)+'</span>'+
@@ -1458,13 +1448,13 @@ function render(){
  const content=screen==="today"?displaySections(d).map(key=>sectionViews[key]||"").join(""):
   screen==="week"?renderWeeklyChecklist(d,active,statsAnchor):
   screen==="month"?renderMonthlyCompletion(d,active,statsAnchor):
-  renderHistory(d,statsUnit,statsAnchor);
+  r==="child"?renderWeeklyChecklist(d,active,statsAnchor):renderHistory(d,statsUnit,statsAnchor);
  if(r==="child"){
   app.innerHTML='<main class="wrap view-child screen-'+screen+(isParentPreview()?" parent-preview":"")+'">'+header(r)+
-   '<aside class="child-aside" aria-label="나의 진행 상황">'+balance+renderChildProgress(d,active,day)+'</aside>'+
+   '<aside class="child-aside" aria-label="나의 진행 상황">'+renderChildProgress(d,active,day)+'</aside>'+
    '<div class="child-work">'+nav+content+'</div></main>';
  }else{
-  app.innerHTML='<main class="wrap view-parent screen-'+screen+'">'+header(r)+balance+nav+content+'</main>';
+  app.innerHTML='<main class="wrap view-parent screen-'+screen+'">'+header(r)+nav+content+'</main>';
  }
  // Defensive UI guard: a public screen must not expose editing drag controls.
  app.querySelectorAll(".drag-handle").forEach(handle=>handle.remove());
@@ -2009,12 +1999,11 @@ function bonusEditor(id){
 function bonusApply(id){
  const d=read(),item=d.bonusItems.find(x=>x.id===id&&x.active!==false);
  if(!item)throw Error("등록된 항목을 찾지 못했습니다.");
- const remain=totals(d);
- const actualDeduction=item.minutes<0?Math.min(remain,-item.minutes):0;
+ const actualDeduction=item.minutes<0?Math.min(totals(d),-item.minutes):0;
  // Avoid native GET form submissions even if submit delegation is interrupted.
  open('<div id="bonusApplyPanel" class="form"><h2 tabindex="-1" autofocus style="outline:none">'+safe(item.title)+'</h2>'+
   '<div class="apply-value '+(item.minutes>0?"positive":"negative")+'">'+(item.minutes>0?"+":"")+item.minutes+'분</div>'+
-  (item.minutes<0?'<p class="bonus-apply-limit" style="font-size:13px;line-height:1.5;color:#65766b;text-align:center;margin:0">실제 차감 '+actualDeduction+'분 · 적용 후 남은 시간 '+time(remain-actualDeduction)+'</p>':"")+
+  (item.minutes<0?'<p class="bonus-apply-limit" style="font-size:13px;line-height:1.5;color:#65766b;text-align:center;margin:0">실제 차감 '+actualDeduction+'분</p>':"")+
   '<label>사유 (선택)<input id="bonusApplyReason" maxlength="100" autocomplete="off" placeholder="필요할 때만 작성"></label>'+
   '<div class="form-actions">'+el("취소","ghost","close")+
   '<button type="button" class="primary" data-action="bonus-confirm" data-id="'+safe(item.id)+'">확인 후 적용</button></div></div>');
@@ -2278,8 +2267,8 @@ if("serviceWorker" in navigator){
   const editor=document.getElementById("bulkForm");
   // Never interrupt unsaved edits. The next navigation will load new assets.
   if(editor?.dataset.dirty==="1"||oneTimeBusy||outstandingWrites||childActionBusy)return;
-  if(sessionStorage.getItem("kid-habits-sw-reload-v59")==="1")return;
-  sessionStorage.setItem("kid-habits-sw-reload-v59","1");
+  if(sessionStorage.getItem("kid-habits-sw-reload-v60")==="1")return;
+  sessionStorage.setItem("kid-habits-sw-reload-v60","1");
   window.location.reload();
  });
 }
